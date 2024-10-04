@@ -1,7 +1,4 @@
 {
-    "cSpell.words": [
-        "imshow"
-    ],
     "terminal.integrated.profiles.windows": {
         "Anaconda PowerShell": {
             "source": "PowerShell",

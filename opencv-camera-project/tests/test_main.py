@@ -1,4 +1,9 @@
-import cv2
+import sys
+import os
+
+# Add the src directory to the Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+
 from components.camera.camera_handler import CameraHandler
 from utils.image_processing import apply_grayscale
 

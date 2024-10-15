@@ -6,9 +6,10 @@
     ],
     "terminal.integrated.profiles.windows": {
         "venv": {
-            "path": "${env:USERPROFILE}\\.venv\\Scripts\\powershell.exe",
+            "path": "${workspaceFolder}/../venv/Scripts/powershell.exe",
             "icon": "terminal-powershell"
         }
     },
-    "terminal.integrated.defaultProfile.windows": "venv"
+    "terminal.integrated.defaultProfile.windows": "venv",
+    "python.pythonPath": "${workspaceFolder}/../venv/Scripts/python"
 }

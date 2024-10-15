@@ -7,9 +7,9 @@
             "name": "Python: Main",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/src/main.py",
+            "program": "${workspaceFolder}/tests/main.py",
             "cwd": "${workspaceFolder}",
-            "pythonPath": "${workspaceFolder}/.venv/bin/python",
+            "pythonPath": "${workspaceFolder}/../venv/Scripts/python",
             "console": "integratedTerminal"
         }
     ]

@@ -5,8 +5,7 @@ import sys
 import os
 
 # Add the src directory to the Python path to allow importing modules from it.
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
-
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'srcs')))
 from components.camera.camera_handler import CameraHandler
 from utils.image_processing import apply_grayscale
 

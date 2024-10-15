@@ -1,3 +1,5 @@
+#opencv-camera-project/srcs/components/camera
+
 import cv2
 
 class CameraHandler:

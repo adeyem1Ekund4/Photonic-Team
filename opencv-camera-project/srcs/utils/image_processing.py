@@ -1,3 +1,4 @@
+#opencv-camera-project/srcs/utils
 import cv2
 
 def apply_grayscale(frame):

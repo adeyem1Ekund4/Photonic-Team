@@ -2,15 +2,13 @@
 // This file contains settings for Visual Studio Code, including terminal profiles and spell check configurations.
 {
     "cSpell.words": [
-        "imshow"  // Add 'imshow' to the spell checker dictionary
+        "imshow"
     ],
     "terminal.integrated.profiles.windows": {
-        "Anaconda PowerShell": {
-            "source": "PowerShell",
-            "icon": "terminal-powershell",
-            "args": ["-ExecutionPolicy", "ByPass", "-NoExit", "-Command", "& 'C:\\Users\\Adeyemi\\Anaconda3\\Scripts\\activate.ps1'"]
+        "venv": {
+            "path": "${env:USERPROFILE}\\.venv\\Scripts\\powershell.exe",
+            "icon": "terminal-powershell"
         }
     },
-    "terminal.integrated.defaultProfile.windows": "Anaconda PowerShell"
+    "terminal.integrated.defaultProfile.windows": "venv"
 }
-

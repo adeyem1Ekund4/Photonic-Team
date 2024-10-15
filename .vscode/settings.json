@@ -1,4 +1,6 @@
 //.vscode
+// settings.json
+// This file contains global settings for the Visual Studio Code editor.
 {
     "terminal.integrated.profiles.windows": {
         "Anaconda PowerShell": {

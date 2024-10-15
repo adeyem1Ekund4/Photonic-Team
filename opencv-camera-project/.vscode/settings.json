@@ -1,7 +1,8 @@
-//opencv-camera-project/.vscode
+// opencv-camera-project/.vscode/settings.json
+// This file contains settings for Visual Studio Code, including terminal profiles and spell check configurations.
 {
     "cSpell.words": [
-        "imshow"
+        "imshow"  // Add 'imshow' to the spell checker dictionary
     ],
     "terminal.integrated.profiles.windows": {
         "Anaconda PowerShell": {
@@ -12,3 +13,4 @@
     },
     "terminal.integrated.defaultProfile.windows": "Anaconda PowerShell"
 }
+

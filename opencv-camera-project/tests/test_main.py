@@ -1,3 +1,4 @@
+#opencv-camera-project/tests
 import sys
 import os
 

@@ -36,3 +36,4 @@ class CameraHandler:
         Release the camera resource.
         """
         self.cap.release()
+

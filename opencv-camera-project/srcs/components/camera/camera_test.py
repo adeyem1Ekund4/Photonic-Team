@@ -1,6 +1,12 @@
 #opencv-camera-project/srcs/components/camera/test_main.py
 
+import sys
+import os
 import cv2
+
+# Add the parent directory of 'srcs' to the Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
 from components.camera.camera_handler import CameraHandler
 from utils.image_processing import apply_grayscale
 
@@ -46,4 +52,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
 

@@ -1,5 +1,6 @@
 // opencv-camera-project/.vscode/settings.json
 // This file contains settings for Visual Studio Code, including terminal profiles and spell check configurations.
+
 {
     "cSpell.words": [
         "imshow"

@@ -1,5 +1,6 @@
 // opencv-camera-project/.vscode/launch.json
 // This configuration file is used by Visual Studio Code to set up debugging for the project.
+
 {
     "version": "0.2.0",
     "configurations": [

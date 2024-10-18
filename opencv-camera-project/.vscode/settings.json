@@ -6,11 +6,11 @@
         "imshow"
     ],
     "terminal.integrated.profiles.windows": {
-        "venv": {
-            "path": "${workspaceFolder}/../venv/Scripts/powershell.exe",
+        "PowerShell": {
+            "source": "PowerShell",
             "icon": "terminal-powershell"
         }
     },
-    "terminal.integrated.defaultProfile.windows": "venv",
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
     "python.pythonPath": "${workspaceFolder}/../venv/Scripts/python"
 }

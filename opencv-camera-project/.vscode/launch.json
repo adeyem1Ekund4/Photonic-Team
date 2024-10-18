@@ -6,11 +6,10 @@
     "configurations": [
         {
             "name": "Python: Main",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/tests/main.py",
             "cwd": "${workspaceFolder}",
-            "pythonPath": "${workspaceFolder}/../venv/Scripts/python",
             "console": "integratedTerminal"
         }
     ]

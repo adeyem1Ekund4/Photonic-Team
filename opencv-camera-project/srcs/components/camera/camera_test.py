@@ -10,13 +10,14 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'
 
 from components.camera.camera_handler import CameraHandler
 from utils.image_processing import apply_grayscale
+from utils.target_detection import detect_ir_targets, draw_targets, map_coordinates
 
 def main():
     """
-    Main function to test the camera functionality.
+    Main function to test the camera functionality and target detection.
     Detects available cameras, attempts to use a USB webcam,
-    captures video, converts each frame to grayscale,
-    and displays it in a window. Press 'q' to quit the application.
+    captures video, detects IR targets, and displays the result.
+    Press 'q' to quit the application.
     """
     try:
         # List available cameras
@@ -47,7 +48,20 @@ def main():
                 continue
 
             gray_frame = apply_grayscale(frame)
-            cv2.imshow('Camera Test', gray_frame)
+            
+            # Detect IR targets
+            targets = detect_ir_targets(gray_frame)
+            
+            # Draw targets on the original frame
+            frame_with_targets = draw_targets(frame, targets)
+            
+            # Display frame with detected targets
+            cv2.imshow('IR Target Detection', frame_with_targets)
+
+            # Print mapped coordinates (example mapping to 1000x1000 coordinate system)
+            for x, y, _ in targets:
+                mapped_x, mapped_y = map_coordinates(x, y, frame.shape[1], frame.shape[0], 1000, 1000)
+                print(f"Target at ({x}, {y}) mapped to ({mapped_x:.2f}, {mapped_y:.2f})")
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("Quitting application...")

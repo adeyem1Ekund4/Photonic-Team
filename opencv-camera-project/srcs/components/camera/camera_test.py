@@ -1,22 +1,35 @@
-#opencv-camera-project/srcs/components/camera/test_main.py
+# opencv-camera-project/srcs/components/camera/camera_test.py
 
 import sys
 import os
 import cv2
 import time
+import datetime
 
 # Add the parent directory of 'srcs' to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from components.camera.camera_handler import CameraHandler
 from utils.image_processing import apply_grayscale
-from utils.target_detection import detect_ir_targets, draw_targets, map_coordinates
+from utils.target_detection import detect_single_target, draw_targets, map_coordinates
+
+def save_coordinates(x, y, timestamp):
+    """
+    Save the mapped coordinates to a file.
+
+    Parameters:
+    x, y (float): Mapped coordinates
+    timestamp (str): Timestamp for the coordinate capture
+    """
+    file_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'target_coordinates.txt')
+    with open(file_path, 'a') as f:
+        f.write(f"{timestamp},{x:.2f},{y:.2f}\n")
 
 def main():
     """
     Main function to test the camera functionality and target detection.
     Detects available cameras, attempts to use a USB webcam,
-    captures video, detects IR targets, and displays the result.
+    captures video, detects a single IR target, and saves its coordinates.
     Press 'q' to quit the application.
     """
     try:
@@ -38,6 +51,7 @@ def main():
             return
 
         print(f"Successfully opened camera with index {camera_index}. Press 'q' to quit.")
+        print(f"Coordinates are being saved to: {os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'target_coordinates.txt'))}")
 
         while True:
             frame = camera.get_frame()
@@ -49,19 +63,27 @@ def main():
 
             gray_frame = apply_grayscale(frame)
             
-            # Detect IR targets
-            targets = detect_ir_targets(gray_frame)
+            # Detect single IR target
+            target = detect_single_target(gray_frame)
             
-            # Draw targets on the original frame
-            frame_with_targets = draw_targets(frame, targets)
-            
-            # Display frame with detected targets
-            cv2.imshow('IR Target Detection', frame_with_targets)
-
-            # Print mapped coordinates (example mapping to 1000x1000 coordinate system)
-            for x, y, _ in targets:
+            if target:
+                x, y, _ = target
+                # Draw target on the original frame
+                frame_with_target = draw_targets(frame, [target])
+                
+                # Map coordinates to 1000x1000 system
                 mapped_x, mapped_y = map_coordinates(x, y, frame.shape[1], frame.shape[0], 1000, 1000)
+                
+                # Save coordinates with timestamp
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+                save_coordinates(mapped_x, mapped_y, timestamp)
+                
+                # Display frame with detected target
+                cv2.imshow('IR Target Detection', frame_with_target)
                 print(f"Target at ({x}, {y}) mapped to ({mapped_x:.2f}, {mapped_y:.2f})")
+            else:
+                cv2.imshow('IR Target Detection', frame)
+                print("No target detected")
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("Quitting application...")
@@ -76,5 +98,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

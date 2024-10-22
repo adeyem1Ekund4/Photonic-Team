@@ -3,18 +3,17 @@
 import cv2
 import numpy as np
 
-def detect_ir_targets(frame, threshold=200, min_area=50, max_targets=5):
+def detect_single_target(frame, threshold=200, min_area=50):
     """
-    Detect IR LED or retro-reflector targets in a grayscale image.
+    Detect the brightest spot in a grayscale image, assumed to be the Photo Beam Sensor/Retroreflector.
 
     Parameters:
     frame (numpy.ndarray): Input grayscale image
     threshold (int): Brightness threshold for target detection (0-255)
     min_area (int): Minimum area of a target to be considered valid
-    max_targets (int): Maximum number of targets to detect
 
     Returns:
-    list: List of detected targets, each represented as (x, y, area)
+    tuple: Detected target represented as (x, y, area), or None if no target found
     """
     # Ensure the frame is grayscale
     if len(frame.shape) > 2:
@@ -28,20 +27,24 @@ def detect_ir_targets(frame, threshold=200, min_area=50, max_targets=5):
     # Find contours in the thresholded image
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Process contours to find centroids
-    targets = []
+    # Find the largest contour above the minimum area
+    largest_contour = None
+    largest_area = 0
     for contour in contours:
         area = cv2.contourArea(contour)
-        if area > min_area:
-            M = cv2.moments(contour)
-            if M["m00"] != 0:
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
-                targets.append((cX, cY, area))
+        if area > min_area and area > largest_area:
+            largest_contour = contour
+            largest_area = area
 
-    # Sort targets by area (largest first) and limit to max_targets
-    targets.sort(key=lambda x: x[2], reverse=True)
-    return targets[:max_targets]
+    # If a valid contour is found, calculate its centroid
+    if largest_contour is not None:
+        M = cv2.moments(largest_contour)
+        if M["m00"] != 0:
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+            return (cX, cY, largest_area)
+
+    return None
 
 def draw_targets(frame, targets, color=(0, 255, 0), radius=5, thickness=2):
     """

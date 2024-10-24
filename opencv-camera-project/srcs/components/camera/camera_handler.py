@@ -4,36 +4,46 @@
 import cv2
 
 class CameraHandler:
-    """
-    A class to handle camera operations such as capturing frames and releasing the camera.
-    """
-
     def __init__(self, camera_index=0):
-        """
-        Initialize the CameraHandler with a specified camera index.
+        self.camera_index = camera_index
+        self.cap = None
 
-        Parameters:
-        camera_index (int): The index of the camera to use (0 for built-in, 1 for external).
+    def open_camera(self):
         """
-        self.cap = cv2.VideoCapture(camera_index)
-        if not self.cap.isOpened():
-            raise ValueError(f"Unable to open camera with index {camera_index}")
-
-    def get_frame(self):
-        """
-        Capture a frame from the camera.
+        Attempt to open the camera.
 
         Returns:
-        numpy.ndarray or None: The captured frame, or None if capturing failed.
+        bool: True if the camera was successfully opened, False otherwise.
         """
+        self.cap = cv2.VideoCapture(self.camera_index)
+        return self.cap.isOpened()
+
+    def get_frame(self):
+        if self.cap is None or not self.cap.isOpened():
+            return None
         ret, frame = self.cap.read()
         if not ret:
             return None
         return frame
 
     def release(self):
+        if self.cap is not None:
+            self.cap.release()
+            self.cap = None
+
+    @staticmethod
+    def list_available_cameras():
         """
-        Release the camera resource.
+        List all available camera indices.
+
+        Returns:
+        list: A list of available camera indices.
         """
-        self.cap.release()
+        available_cameras = []
+        for i in range(10):  # Check first 10 indices
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                available_cameras.append(i)
+                cap.release()
+        return available_cameras
 

@@ -6,31 +6,31 @@ import cv2
 import time
 import datetime
 
-# Add the parent directory of 'srcs' to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from components.camera.camera_handler import CameraHandler
 from utils.image_processing import apply_grayscale
 from utils.target_detection import detect_single_target, draw_targets, map_coordinates
 
-def save_coordinates(x, y, timestamp):
-    """
-    Save the mapped coordinates to a new file with an incremented name.
-
-    Parameters:
-    x, y (float): Mapped coordinates
-    timestamp (str): Timestamp for the coordinate capture
-    """
-    base_path = os.path.join(os.path.dirname(__file__), '..', '..', '..')
+def get_new_file_path(base_path):
     file_index = 1
     while True:
         file_path = os.path.join(base_path, f'target_coordinates_{file_index:03d}.txt')
         if not os.path.exists(file_path):
-            break
+            return file_path
         file_index += 1
 
+def save_coordinates(file_path, x, y, timestamp):
+    """
+    Save the mapped coordinates to the specified file.
+
+    Parameters:
+    file_path (str): Path to the file where coordinates should be saved.
+    x, y (float): Mapped coordinates
+    timestamp (str): Timestamp for the coordinate capture
+    """
     with open(file_path, 'a') as f:
-        f.write(f"{timestamp},{x:.2f},{y:.2f}\n")
+        f.write(f"{x:.2f},{y:.2f},{timestamp}\n")
 
 def main():
     """
@@ -40,7 +40,9 @@ def main():
     Press 'q' to quit the application.
     """
     try:
-        # List available cameras
+        base_path = os.path.join(os.path.dirname(__file__), '..', '..', '..')
+        file_path = get_new_file_path(base_path)
+
         available_cameras = CameraHandler.list_available_cameras()
         print(f"Available camera indices: {available_cameras}")
 
@@ -48,7 +50,6 @@ def main():
             print("No cameras detected. Please connect a camera and try again.")
             return
 
-        # Prefer external USB camera (usually index 1) if available, else use the first available camera
         camera_index = 1 if 1 in available_cameras else available_cameras[0]
         
         camera = CameraHandler(camera_index=camera_index)
@@ -58,34 +59,27 @@ def main():
             return
 
         print(f"Successfully opened camera with index {camera_index}. Press 'q' to quit.")
-        print(f"Coordinates are being saved to: {os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'target_coordinates.txt'))}")
+        print(f"Coordinates are being saved to: {file_path}")
 
         while True:
             frame = camera.get_frame()
             
             if frame is None:
                 print("Failed to capture frame. Retrying...")
-                time.sleep(1)  # Wait for a second before retrying
+                time.sleep(1)
                 continue
 
             gray_frame = apply_grayscale(frame)
             
-            # Detect single IR target
             target = detect_single_target(gray_frame)
             
             if target:
                 x, y, _ = target
-                # Draw target on the original frame
                 frame_with_target = draw_targets(frame, [target])
-                
-                # Map coordinates to 1000x1000 system
                 mapped_x, mapped_y = map_coordinates(x, y, frame.shape[1], frame.shape[0], 1000, 1000)
-                
-                # Save coordinates with timestamp
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-                save_coordinates(mapped_x, mapped_y, timestamp)
+                save_coordinates(file_path, mapped_x, mapped_y, timestamp)
                 
-                # Display frame with detected target
                 cv2.imshow('IR Target Detection', frame_with_target)
                 print(f"Target at ({x}, {y}) mapped to ({mapped_x:.2f}, {mapped_y:.2f})")
             else:
@@ -105,3 +99,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

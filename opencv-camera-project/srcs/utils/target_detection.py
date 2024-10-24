@@ -50,7 +50,6 @@ def detect_single_target(frame, threshold=200, min_area=50):
 
     return None
 
-
 def draw_targets(frame, targets, color=(0, 255, 0), radius=5, thickness=2):
     """
     Draw detected targets on the frame.

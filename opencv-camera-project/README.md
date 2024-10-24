@@ -26,4 +26,4 @@ To run the camera test, execute the following command:
 
    python srcs/components/camera/camera_test.py
 
-Press 'q' to quit the application. The detected target coordinates will be saved in a file named target_coordinates.txt
+Press 'q' or 'Ctrl/Cmd+C' to quit the application. The detected target coordinates will be saved in a file named target_coordinates.txt

@@ -24,6 +24,10 @@ def detect_single_target(frame, threshold=200, min_area=50):
     # Threshold the image to isolate bright spots
     _, thresh = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
 
+    # Apply morphological operations to reduce noise
+    kernel = np.ones((5, 5), np.uint8)
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
     # Find contours in the thresholded image
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -45,6 +49,7 @@ def detect_single_target(frame, threshold=200, min_area=50):
             return (cX, cY, largest_area)
 
     return None
+
 
 def draw_targets(frame, targets, color=(0, 255, 0), radius=5, thickness=2):
     """

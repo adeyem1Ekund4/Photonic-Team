@@ -15,13 +15,20 @@ from utils.target_detection import detect_single_target, draw_targets, map_coord
 
 def save_coordinates(x, y, timestamp):
     """
-    Save the mapped coordinates to a file.
+    Save the mapped coordinates to a new file with an incremented name.
 
     Parameters:
     x, y (float): Mapped coordinates
     timestamp (str): Timestamp for the coordinate capture
     """
-    file_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'target_coordinates.txt')
+    base_path = os.path.join(os.path.dirname(__file__), '..', '..', '..')
+    file_index = 1
+    while True:
+        file_path = os.path.join(base_path, f'target_coordinates_{file_index:03d}.txt')
+        if not os.path.exists(file_path):
+            break
+        file_index += 1
+
     with open(file_path, 'a') as f:
         f.write(f"{timestamp},{x:.2f},{y:.2f}\n")
 

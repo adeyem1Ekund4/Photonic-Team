@@ -37,7 +37,7 @@ def main():
     Main function to test the camera functionality and target detection.
     Detects available cameras, attempts to use a USB webcam,
     captures video, detects a single IR target, and saves its coordinates.
-    Press 'q' to quit the application.
+    Press 'q' or 'Ctrl/Cmd+C' to quit the application.
     """
     try:
         base_path = os.path.join(os.path.dirname(__file__), '..', '..', '..')

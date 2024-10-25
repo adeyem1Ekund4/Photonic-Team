@@ -29,8 +29,16 @@ def save_coordinates(file_path, x, y, timestamp):
     x, y (float): Mapped coordinates
     timestamp (str): Timestamp for the coordinate capture
     """
+    date, time = timestamp.split(' ')
+
+    file_exists = os.path.exists(file_path)
+
     with open(file_path, 'a') as f:
-        f.write(f"{x:.2f},{y:.2f},{timestamp}\n")
+        # Write headers if the file is new
+        if not file_exists:
+            f.write("x-coordinate,y-coordinate,date,time\n")
+        # Write the data
+        f.write(f"{x:.2f},{y:.2f},{date},{time}\n")
 
 def main():
     """

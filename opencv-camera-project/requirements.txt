@@ -1,3 +1,5 @@
 # opencv-camera-project/requirements.txt
 # This file lists the Python package dependencies required for the project.
+
 opencv-python==4.5.5.64  # Specifies the version of OpenCV to be used.
+matplotlib==3.7.1        # Add this line for matplotlib

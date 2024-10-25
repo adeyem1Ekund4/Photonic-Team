@@ -85,3 +85,26 @@ def map_coordinates(x, y, frame_width, frame_height, out_width, out_height):
     mapped_x = (x / frame_width) * out_width
     mapped_y = (y / frame_height) * out_height
     return (mapped_x, mapped_y)
+
+def pixel_to_spherical(x, y, frame_width, frame_height):
+    """
+    Convert pixel coordinates to spherical angles (θ, ϕ).
+
+    Parameters:
+    x (int): Pixel x-coordinate
+    y (int): Pixel y-coordinate
+    frame_width (int): Width of the frame in pixels
+    frame_height (int): Height of the frame in pixels
+
+    Returns:
+    tuple: (θ, ϕ) angles in degrees
+    """
+    # Normalize pixel coordinates to [0, 1]
+    normalized_x = x / frame_width
+    normalized_y = y / frame_height
+
+    # Convert normalized coordinates to angles
+    theta = normalized_x * 180 - 90  # Mapping to [-90, 90] degrees
+    phi = normalized_y * 180 - 90    # Mapping to [-90, 90] degrees
+
+    return (theta, phi)

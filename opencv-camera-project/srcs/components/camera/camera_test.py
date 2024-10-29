@@ -23,28 +23,21 @@ def get_new_file_path(base_path):
         file_index += 1
 
 class SphericalMapper:
-    def __init__(self, frame_width, frame_height, fov_horizontal=90, fov_vertical=60):
+    def __init__(self, frame_width, frame_height, theta_min=45, theta_max=135, phi_min=60, phi_max=120):
         """
         Initialize the spherical coordinate mapper.
         
         Parameters:
         frame_width, frame_height: Camera resolution in pixels
-        fov_horizontal: Horizontal field of view in degrees (default 90°)
-        fov_vertical: Vertical field of view in degrees (default 60°)
+        theta_min, theta_max: Minimum and maximum horizontal angles (in degrees)
+        phi_min, phi_max: Minimum and maximum vertical angles (in degrees)
         """
         self.width = frame_width
         self.height = frame_height
-        self.fov_h = fov_horizontal
-        self.fov_v = fov_vertical
-        
-        # Calculate angular ranges
-        self.theta_min = 45  # degrees (left edge)
-        self.theta_max = 135  # degrees (right edge)
-        self.phi_min = 60  # degrees (bottom edge)
-        self.phi_max = 120  # degrees (top edge)
-        
-        # Create coordinate grids
-        self.setup_coordinate_grids()
+        self.theta_min = theta_min
+        self.theta_max = theta_max
+        self.phi_min = phi_min
+        self.phi_max = phi_max
 
     def setup_coordinate_grids(self):
         """Create coordinate grids for faster mapping"""
@@ -58,7 +51,7 @@ class SphericalMapper:
 
     def pixel_to_spherical(self, x, y):
         """
-        Convert pixel coordinates to spherical coordinates (θ,ϕ)
+        Convert pixel coordinates to spherical coordinates (θ, ϕ)
         
         Parameters:
         x, y: Pixel coordinates
@@ -66,8 +59,9 @@ class SphericalMapper:
         Returns:
         tuple: (theta, phi) in degrees
         """
-        theta = self.pixel_to_theta(x)
-        phi = self.pixel_to_phi(y)
+        # Linear mapping from pixel to angle
+        theta = self.theta_min + (x / self.width) * (self.theta_max - self.theta_min)
+        phi = self.phi_min + (y / self.height) * (self.phi_max - self.phi_min)
         return theta, phi
 
     def pixel_to_theta(self, x):

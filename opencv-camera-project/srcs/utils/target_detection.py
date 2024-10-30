@@ -1,3 +1,4 @@
+# target_detection.py
 # opencv-camera-project/srcs/utils/target_detection.py
 
 import cv2
@@ -85,3 +86,26 @@ def map_coordinates(x, y, frame_width, frame_height, out_width, out_height):
     mapped_x = (x / frame_width) * out_width
     mapped_y = (y / frame_height) * out_height
     return (mapped_x, mapped_y)
+
+def map_to_spherical_angles(x, y, frame_width, frame_height, theta_min, theta_max, phi_min, phi_max):
+    """
+    Map pixel coordinates to spherical angles (azimuth and altitude).
+
+    Parameters:
+    x, y (int): Input pixel coordinates
+    frame_width, frame_height (int): Dimensions of the input frame
+    theta_min, theta_max (float): Minimum and maximum azimuth angles
+    phi_min, phi_max (float): Minimum and maximum altitude angles
+
+    Returns:
+    tuple: Mapped (theta, phi) angles
+    """
+    # Normalize the pixel coordinates to a range of 0 to 1
+    normalized_x = x / frame_width
+    normalized_y = y / frame_height
+
+    # Map normalized coordinates to angle ranges
+    theta = theta_min + (theta_max - theta_min) * normalized_x
+    phi = phi_min + (phi_max - phi_min) * (1 - normalized_y)  # Invert y for altitude
+
+    return (theta, phi)

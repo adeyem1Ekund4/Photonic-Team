@@ -1,3 +1,4 @@
+# camera_test.py
 # opencv-camera-project/srcs/components/camera/camera_test.py
 
 import sys
@@ -10,7 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'
 
 from components.camera.camera_handler import CameraHandler
 from utils.image_processing import apply_grayscale
-from utils.target_detection import detect_single_target, draw_targets, map_coordinates
+from utils.target_detection import detect_single_target, draw_targets, map_coordinates, map_to_spherical_angles
 
 def get_new_file_path(base_path):
     file_index = 1
@@ -69,6 +70,12 @@ def main():
         print(f"Successfully opened camera with index {camera_index}. Press 'q' to quit.")
         print(f"Coordinates are being saved to: {file_path}")
 
+        # Define min and max angles for mapping
+        theta_min = -45.0  # Example values, replace with actual from the document
+        theta_max = 45.0   # Example values, replace with actual from the document
+        phi_min = 0.0      # Example values, replace with actual from the document
+        phi_max = 90.0     # Example values, replace with actual from the document
+
         while True:
             frame = camera.get_frame()
             
@@ -85,11 +92,18 @@ def main():
                 x, y, _ = target
                 frame_with_target = draw_targets(frame, [target])
                 mapped_x, mapped_y = map_coordinates(x, y, frame.shape[1], frame.shape[0], 1000, 1000)
+                
+                # Map pixel coordinates to spherical angles
+                theta, phi = map_to_spherical_angles(x, y, frame.shape[1], frame.shape[0], theta_min, theta_max, phi_min, phi_max)
+                
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
                 save_coordinates(file_path, mapped_x, mapped_y, timestamp)
+
+                # Output the angles for further processing
+                print(f"Mapped angles: θ = {theta:.2f}, ɸ = {phi:.2f}")
                 
                 cv2.imshow('IR Target Detection', frame_with_target)
-                print(f"Target at ({x}, {y}) mapped to ({mapped_x:.2f}, {mapped_y:.2f})")
+                print(f"Target at ({x}, {y}) mapped to ({mapped_x:.2f}, {mapped_y:.2f}) with angles θ = {theta:.2f}, ɸ = {phi:.2f}")
             else:
                 cv2.imshow('IR Target Detection', frame)
                 print("No target detected")
@@ -107,4 +121,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

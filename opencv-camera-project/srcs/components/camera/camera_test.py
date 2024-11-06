@@ -1,5 +1,6 @@
 # camera_test.py
 # opencv-camera-project/srcs/components/camera/camera_test.py
+# This script tests the camera functionality and performs target detection.
 
 import sys
 import os
@@ -7,6 +8,7 @@ import cv2
 import time
 import datetime
 
+# Add the project source directory to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from components.camera.camera_handler import CameraHandler
@@ -14,6 +16,15 @@ from utils.image_processing import apply_grayscale
 from utils.target_detection import detect_single_target, draw_targets, map_coordinates, map_to_spherical_angles
 
 def get_new_file_path(base_path):
+    """
+    Generate a new file path for saving target coordinates.
+
+    Parameters:
+    base_path (str): The base directory path.
+
+    Returns:
+    str: A new file path for saving target coordinates.
+    """
     file_index = 1
     while True:
         file_path = os.path.join(base_path, f'target_coordinates_{file_index:03d}.txt')
@@ -118,3 +129,5 @@ def main():
         if 'camera' in locals():
             camera.release()
         cv2.destroyAllWindows()
+
+# -----

@@ -1,3 +1,4 @@
+# camera_handler.py
 # opencv-camera-project/srcs/components/camera/camera_handler.py
 # This module provides a class to handle camera operations.
 
@@ -5,6 +6,12 @@ import cv2
 
 class CameraHandler:
     def __init__(self, camera_index=0):
+        """
+        Initialize the CameraHandler with a specified camera index.
+
+        Parameters:
+        camera_index (int): Index of the camera to be used. Default is 0.
+        """
         self.camera_index = camera_index
         self.cap = None
 
@@ -19,6 +26,12 @@ class CameraHandler:
         return self.cap.isOpened()
 
     def get_frame(self):
+        """
+        Capture a frame from the camera.
+
+        Returns:
+        numpy.ndarray: The captured frame, or None if the capture failed.
+        """
         if self.cap is None or not self.cap.isOpened():
             return None
         ret, frame = self.cap.read()
@@ -27,6 +40,9 @@ class CameraHandler:
         return frame
 
     def release(self):
+        """
+        Release the camera resource.
+        """
         if self.cap is not None:
             self.cap.release()
             self.cap = None
@@ -46,4 +62,6 @@ class CameraHandler:
                 available_cameras.append(i)
                 cap.release()
         return available_cameras
+
+# -----
 

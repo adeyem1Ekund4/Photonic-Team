@@ -5,12 +5,24 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: Camera Test",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/srcs/components/camera/camera_test.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/srcs"
+            }
+        },
+        {
             "name": "Python: Main",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/tests/main.py",
+            "program": "${workspaceFolder}/srcs/components/camera/camera_test.py",
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal"
         }
     ]
 }
+

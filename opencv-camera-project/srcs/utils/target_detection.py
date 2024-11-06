@@ -87,6 +87,7 @@ def map_coordinates(x, y, frame_width, frame_height, out_width, out_height):
     mapped_y = (y / frame_height) * out_height
     return (mapped_x, mapped_y)
 
+
 def map_to_spherical_angles(x, y, frame_width, frame_height, theta_min, theta_max, phi_min, phi_max):
     """
     Map pixel coordinates to spherical angles (azimuth and altitude).

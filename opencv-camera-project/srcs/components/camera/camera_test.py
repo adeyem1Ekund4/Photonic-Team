@@ -71,10 +71,10 @@ def main():
         print(f"Coordinates are being saved to: {file_path}")
 
         # Define min and max angles for mapping
-        theta_min = -45.0  # Example values, replace with actual from the document
-        theta_max = 45.0   # Example values, replace with actual from the document
-        phi_min = 0.0      # Example values, replace with actual from the document
-        phi_max = 90.0     # Example values, replace with actual from the document
+        theta_min = -45.0  # Replace with actual values from the document
+        theta_max = 45.0   # Replace with actual values from the document
+        phi_min = 0.0      # Replace with actual values from the document
+        phi_max = 90.0     # Replace with actual values from the document
 
         while True:
             frame = camera.get_frame()
@@ -118,6 +118,3 @@ def main():
         if 'camera' in locals():
             camera.release()
         cv2.destroyAllWindows()
-
-if __name__ == "__main__":
-    main()

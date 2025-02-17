@@ -21,7 +21,7 @@ def detect_green_dots(frame, min_area=50):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # Define the range for bright neon green color
-    lower_green = np.array([40, 200, 200])  # Adjust as needed
+    lower_green = np.array([40, 200, 200])  # Adjust these values for neon green
     upper_green = np.array([70, 255, 255])
 
     # Create a mask for green color

@@ -55,76 +55,50 @@ def save_coordinates(file_path, x, y, timestamp):
 def main():
     """
     Main function to test the camera functionality and target detection.
-    Detects available cameras, attempts to use a USB webcam,
-    captures video, detects a single IR target, and saves its coordinates.
-    Press 'q' or 'Ctrl/Cmd+C' to quit the application.
     """
     try:
-        base_path = os.path.join(os.path.dirname(__file__), '..', '..', '..')
-        file_path = get_new_file_path(base_path)
+        camera = CameraHandler(camera_index=0)  # Use the first available camera
 
-        available_cameras = CameraHandler.list_available_cameras()
-        print(f"Available camera indices: {available_cameras}")
-
-        if not available_cameras:
-            print("No cameras detected. Please connect a camera and try again.")
-            return
-
-        camera_index = 1 if 1 in available_cameras else available_cameras[0]
-        
-        camera = CameraHandler(camera_index=camera_index)
-        
         if not camera.open_camera():
-            print(f"Failed to open camera with index {camera_index}. Please check the connection.")
+            print("Failed to open camera. Please check the connection.")
             return
 
-        print(f"Successfully opened camera with index {camera_index}. Press 'q' to quit.")
-        print(f"Coordinates are being saved to: {file_path}")
-
-        # Define min and max angles for mapping
-        theta_min = -45.0  # Replace with actual values from the document
-        theta_max = 45.0   # Replace with actual values from the document
-        phi_min = 0.0      # Replace with actual values from the document
-        phi_max = 90.0     # Replace with actual values from the document
+        print("Press 'q' to quit.")
 
         while True:
             frame = camera.get_frame()
-            
+
             if frame is None:
                 print("Failed to capture frame. Retrying...")
                 time.sleep(1)
                 continue
 
-            gray_frame = apply_grayscale(frame)
-            
-            target = detect_single_target(gray_frame)
-            
-            if target:
-                x, y, _ = target
-                frame_with_target = draw_targets(frame, [target])
-                mapped_x, mapped_y = map_coordinates(x, y, frame.shape[1], frame.shape[0], 1000, 1000)
-                
-                # Map pixel coordinates to spherical angles
-                theta, phi = map_to_spherical_angles(x, y, frame.shape[1], frame.shape[0], theta_min, theta_max, phi_min, phi_max)
-                
-                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-                save_coordinates(file_path, mapped_x, mapped_y, timestamp)
+            # Detect green dots
+            detected_dots = detect_green_dots(frame)
 
-                # Output the angles for further processing
-                print(f"Mapped angles: θ = {theta:.2f}, ɸ = {phi:.2f}")
-                
-                cv2.imshow('IR Target Detection', frame_with_target)
-                print(f"Target at ({x}, {y}) mapped to ({mapped_x:.2f}, {mapped_y:.2f}) with angles θ = {theta:.2f}, ɸ = {phi:.2f}")
-            else:
-                cv2.imshow('IR Target Detection', frame)
-                print("No target detected")
+            # Validate if the dots form a square
+            if validate_square(detected_dots):
+                frame = draw_square(frame, detected_dots)
+
+                # Display coordinates of the square's center
+                center_x = sum(dot[0] for dot in detected_dots) // 4
+                center_y = sum(dot[1] for dot in detected_dots) // 4
+                cv2.putText(frame, f"({center_x}, {center_y})", (10, frame.shape[0] - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
+
+            # Add stylized elements (e.g., XY tracking plane scales)
+            height, width, _ = frame.shape
+            cv2.line(frame, (0, height - 50), (width, height - 50), (255, 255, 255), 1)
+            cv2.line(frame, (50, 0), (50, height), (255, 255, 255), 1)
+
+            # Display the frame
+            cv2.imshow("Drone Security Camera", frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
-                print("Quitting application...")
                 break
 
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An error occurred: {e}")
     finally:
         if 'camera' in locals():
             camera.release()

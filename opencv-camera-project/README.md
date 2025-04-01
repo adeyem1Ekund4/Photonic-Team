@@ -29,7 +29,7 @@ To run the camera test, execute the following command:
 
 Press 'q' or 'Ctrl/Cmd+C' to quit the application. The detected target coordinates will be saved in a file named target_coordinates.txt
 
-## New Version (2025)
+# New Version (2025)
 
 1. Camera Handling
 - CameraHandler: Manages camera initialization, frame capture, and camera properties
@@ -46,7 +46,7 @@ Multiple detection methods:
 4. UI Components
 ControlPanel: Provides sliders and controls to adjust detection parameters in real-time
 
-# Key Features
+## Key Features
 - Multi-method target detection - Can detect targets using brightness, contour analysis, or a hybrid approach
 - Square pattern recognition - Identifies when four dots form a square arrangement
 - Predictive tracking - Uses Kalman filtering to predict target position when detection fails

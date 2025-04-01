@@ -1,5 +1,4 @@
 # requirements.txt
 # opencv-camera-project/requirements.txt
-# This file lists the Python package dependencies required for the project.
-opencv-python>=4.5.0
+opencv-python==4.5.5.64
 numpy>=1.19.0

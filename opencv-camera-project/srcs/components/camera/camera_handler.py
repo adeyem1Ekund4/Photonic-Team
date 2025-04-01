@@ -1,81 +1,68 @@
-# camera_handler.py
 # opencv-camera-project/srcs/components/camera/camera_handler.py
-# This module provides a class to handle camera operations.
-
 import cv2
 
 class CameraHandler:
-    def __init__(self, camera_index=0):
-        self.camera_index = camera_index
-        self.cap = None
-        print(f"Initializing Windows camera with index {camera_index}")
-
-    def open_camera(self):
-        """
-        Attempt to open the camera using Windows-specific settings.
-        """
-        try:
-            # Try DirectShow first (preferred for Windows)
-            self.cap = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
-            
-            # Set resolution (optional, adjust as needed)
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            
-            if not self.cap.isOpened():
-                print(f"Failed to open camera {self.camera_index} with DirectShow")
-                # Try without DirectShow as fallback
-                self.cap = cv2.VideoCapture(self.camera_index)
-                if not self.cap.isOpened():
-                    print("Failed to open camera with fallback method")
-                    return False
-
-            # Verify camera works by reading a test frame
-            ret, frame = self.cap.read()
-            if not ret or frame is None:
-                print("Camera opened but failed to read frame")
-                self.cap.release()
-                return False
-
-            print(f"Successfully opened camera {self.camera_index}")
-            return True
-
-        except Exception as e:
-            print(f"Error opening camera: {str(e)}")
-            return False
+    def __init__(self, camera_index=0, resolution=(640, 480), fps=30):
+        self.cap = cv2.VideoCapture(camera_index)
+        if not self.cap.isOpened():
+            raise ValueError(f"Unable to open camera with index {camera_index}")
+        
+        # Set resolution
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[0])
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])
+        
+        # Set FPS
+        self.cap.set(cv2.CAP_PROP_FPS, fps)
+        
+        # Verify settings were applied
+        self.actual_resolution = (
+            int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        )
+        self.actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
+        
+        print(f"Camera initialized with resolution: {self.actual_resolution}, FPS: {self.actual_fps}")
 
     def get_frame(self):
-        if self.cap is None or not self.cap.isOpened():
-            return None
         ret, frame = self.cap.read()
         if not ret:
             return None
         return frame
+    
+    def get_camera_properties(self):
+        """Return the current camera properties."""
+        return {
+            "resolution": self.actual_resolution,
+            "fps": self.actual_fps,
+            "brightness": self.cap.get(cv2.CAP_PROP_BRIGHTNESS),
+            "contrast": self.cap.get(cv2.CAP_PROP_CONTRAST),
+            "saturation": self.cap.get(cv2.CAP_PROP_SATURATION),
+            "hue": self.cap.get(cv2.CAP_PROP_HUE),
+            "gain": self.cap.get(cv2.CAP_PROP_GAIN),
+            "exposure": self.cap.get(cv2.CAP_PROP_EXPOSURE)
+        }
+
+    def set_resolution(self, width, height):
+        """Set camera resolution and return if it was successful."""
+        result_width = self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        result_height = self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        
+        # Update actual resolution
+        self.actual_resolution = (
+            int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        )
+        
+        return result_width and result_height
+
+    def set_fps(self, fps):
+        """Set camera FPS and return if it was successful."""
+        result = self.cap.set(cv2.CAP_PROP_FPS, fps)
+        
+        # Update actual FPS
+        self.actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
+        
+        return result
 
     def release(self):
-        if self.cap is not None:
-            self.cap.release()
-            self.cap = None
-
-    @staticmethod
-    def list_available_cameras():
-        """
-        List available cameras on Windows.
-        """
-        available_cameras = []
-        for i in range(5):  # Check first 5 indices
-            try:
-                cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-                if cap.isOpened():
-                    ret, frame = cap.read()
-                    if ret and frame is not None:
-                        available_cameras.append(i)
-                    cap.release()
-            except:
-                continue
-        return available_cameras
-
-
-
-# -----
-
+        self.cap.release()

@@ -1,0 +1,39 @@
+{
+    "camera": {
+        "default_index": 0,
+        "resolution": [
+            640,
+            480
+        ],
+        "fps": 30,
+        "brightness": 0,
+        "contrast": 0,
+        "saturation": 0,
+        "auto_focus": true
+    },
+    "detection": {
+        "method": "hybrid",
+        "min_area": 19,
+        "max_area": 807,
+        "threshold_value": 110,
+        "square_tolerance": 0.46,
+        "history_length": 5,
+        "circularity_threshold": 0.77,
+        "merge_distance": 10,
+        "edge_detection": {
+            "low_threshold": 50,
+            "high_threshold": 150
+        }
+    },
+    "display": {
+        "show_fps": true,
+        "show_detection_info": true,
+        "scale_factor": 1.0,
+        "show_control_panel": true
+    },
+    "save": {
+        "save_detections": false,
+        "output_directory": "output",
+        "filename_prefix": "detection_"
+    }
+}

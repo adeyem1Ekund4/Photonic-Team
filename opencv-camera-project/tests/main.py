@@ -9,7 +9,7 @@ import cv2
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../srcs')))
 
 from components.camera.camera_handler import CameraHandler
-from utils.image_processing import apply_grayscale
+from utils.image_processing import apply_grayscale, resize_frame
 
 def main():
     """
@@ -24,8 +24,11 @@ def main():
             print("Failed to capture frame")
             break
 
-        # Apply grayscale processing to the captured frame
-        gray_frame = apply_grayscale(frame)
+        # Resize the frame for better performance (scale to 50%)
+        resized_frame = resize_frame(frame, scale=0.5)
+        
+        # Apply grayscale processing to the resized frame
+        gray_frame = apply_grayscale(resized_frame)
 
         # Display the resulting grayscale frame
         cv2.imshow('Frame', gray_frame)
@@ -39,3 +42,4 @@ def main():
 
 if __name__ == "__main__":
     main()  # Execute the main function if the script is run directly
+

@@ -1,66 +1,107 @@
-# srcs/utils/performance_monitor.py
+# opencv-camera-project/srcs/utils/performance_monitor.py
 import time
 import numpy as np
 import logging
 from typing import Dict
 
-class CameraPerformanceMonitor:
-    def __init__(self, log_file: str = 'camera_performance.log'):
+class PerformanceMonitor:
+    def __init__(self, history_length=100):
         """
-        Monitor camera performance and log diagnostics
+        Monitor performance metrics like FPS and frame processing time.
         
         Args:
-            log_file (str): Path to log file
+            history_length (int): Number of frames to keep in history for calculations
         """
         self.frame_times = []
-        self.log_file = log_file
+        self.history_length = history_length
         self.start_time = time.time()
-        
-        # Configure logging
-        logging.basicConfig(filename=log_file, level=logging.INFO,
-                            format='%(asctime)s - %(levelname)s: %(message)s')
+        self.total_frames = 0
 
-    def update_frame_time(self, frame_time: float):
+    def update(self, frame_time: float):
         """
-        Record frame processing time
+        Update with a new frame processing time
         
         Args:
-            frame_time (float): Time taken to process a frame
+            frame_time (float): Time taken to process the frame in seconds
         """
         self.frame_times.append(frame_time)
+        self.total_frames += 1
         
-        # Keep last 100 frame times
-        if len(self.frame_times) > 100:
+        # Keep history limited to specified length
+        if len(self.frame_times) > self.history_length:
             self.frame_times.pop(0)
 
-    def get_performance_metrics(self) -> Dict[str, float]:
+    def get_fps(self) -> float:
         """
-        Calculate performance metrics
+        Calculate current frames per second based on recent history
         
         Returns:
-            Dictionary of performance metrics
+            float: Current FPS
         """
         if not self.frame_times:
-            return {}
+            return 0.0
         
-        metrics = {
-            'avg_fps': len(self.frame_times) / (time.time() - self.start_time),
-            'avg_frame_time': np.mean(self.frame_times),
-            'max_frame_time': np.max(self.frame_times),
-            'min_frame_time': np.min(self.frame_times)
-        }
-        
-        # Log performance metrics periodically
-        self._log_performance(metrics)
-        
-        return metrics
+        # Calculate FPS from average frame time
+        avg_frame_time = sum(self.frame_times) / len(self.frame_times)
+        if avg_frame_time > 0:
+            return 1.0 / avg_frame_time
+        return 0.0
 
-    def _log_performance(self, metrics: Dict[str, float]):
+    def get_overall_fps(self) -> float:
         """
-        Log performance metrics
+        Calculate overall average FPS since monitoring started
+        
+        Returns:
+            float: Overall average FPS
+        """
+        elapsed_time = time.time() - self.start_time
+        if elapsed_time > 0:
+            return self.total_frames / elapsed_time
+        return 0.0
+
+    def get_stats(self) -> Dict[str, float]:
+        """
+        Get comprehensive performance statistics
+        
+        Returns:
+            Dict: Dictionary of performance metrics
+        """
+        if not self.frame_times:
+            return {
+                "current_fps": 0.0,
+                "overall_fps": 0.0,
+                "avg_frame_time": 0.0,
+                "min_frame_time": 0.0,
+                "max_frame_time": 0.0,
+                "total_runtime": time.time() - self.start_time,
+                "total_frames": self.total_frames
+            }
+        
+        return {
+            "current_fps": self.get_fps(),
+            "overall_fps": self.get_overall_fps(),
+            "avg_frame_time": sum(self.frame_times) / len(self.frame_times),
+            "min_frame_time": min(self.frame_times),
+            "max_frame_time": max(self.frame_times),
+            "total_runtime": time.time() - self.start_time,
+            "total_frames": self.total_frames
+        }
+
+    def log_stats(self, interval=60):
+        """
+        Log statistics at specified intervals
         
         Args:
-            metrics (Dict[str, float]): Performance metrics to log
+            interval (int): Logging interval in seconds
         """
-        log_message = " | ".join([f"{k}: {v:.2f}" for k, v in metrics.items()])
-        logging.info(f"Performance Metrics: {log_message}")
+        elapsed = time.time() - self.start_time
+        if elapsed > 0 and int(elapsed) % interval == 0:
+            stats = self.get_stats()
+            log_message = (
+                f"Performance Stats | "
+                f"Current FPS: {stats['current_fps']:.2f} | "
+                f"Overall FPS: {stats['overall_fps']:.2f} | "
+                f"Avg Frame Time: {stats['avg_frame_time']*1000:.2f}ms | "
+                f"Total Frames: {stats['total_frames']}"
+            )
+            print(log_message)

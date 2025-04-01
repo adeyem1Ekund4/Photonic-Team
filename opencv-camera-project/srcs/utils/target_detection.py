@@ -1,35 +1,288 @@
-# target_detection.py
 # opencv-camera-project/srcs/utils/target_detection.py
-# This module contains functions for detecting and processing targets in images.
-
 import cv2
 import numpy as np
 import time
+from itertools import combinations
 from typing import List, Tuple, Optional
+
+def detect_bright_dots(frame, min_area=5, threshold_value=245) -> List[Tuple[int, int, float]]:
+    """
+    Detect the brightest light dots in the image using adaptive thresholding.
+    
+    Parameters:
+      frame (numpy.ndarray): The input image in BGR format.
+      min_area (int): Minimum area of a blob to be considered a dot.
+      threshold_value (int): Base pixel intensity threshold (0-255).
+    
+    Returns:
+      List of tuples (x, y, area) for each detected dot.
+    """
+    # Convert to HSV for better brightness isolation
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    
+    # Extract the V (Value) channel which represents brightness
+    v_channel = hsv[:,:,2]
+    
+    # Apply Gaussian blur to reduce noise
+    blurred = cv2.GaussianBlur(v_channel, (5, 5), 0)
+    
+    # Threshold the image to isolate very bright areas
+    _, thresh = cv2.threshold(blurred, threshold_value, 255, cv2.THRESH_BINARY)
+    
+    # Apply morphological operations to clean up the thresholded image
+    kernel = np.ones((3, 3), np.uint8)
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+    
+    # Find contours in the thresholded image
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    detected_dots = []
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area >= min_area:
+            M = cv2.moments(contour)
+            if M["m00"] != 0:
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+                detected_dots.append((cX, cY, area))
+    
+    return detected_dots
+
+def detect_targets_by_contour(frame, min_area=5, max_area=500, circularity_threshold=0.7) -> List[Tuple[int, int, float]]:
+    """
+    Detect targets using contour analysis rather than just brightness.
+    
+    Parameters:
+      frame (numpy.ndarray): The input image in BGR format.
+      min_area (int): Minimum area of a contour to be considered.
+      max_area (int): Maximum area of a contour to be considered.
+      circularity_threshold (float): Minimum circularity value (0-1) to consider a contour as a dot.
+    
+    Returns:
+      List of tuples (x, y, area) for each detected dot.
+    """
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    
+    # Use Canny edge detection
+    edges = cv2.Canny(blurred, 50, 150)
+    
+    # Find contours
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    detected_dots = []
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if min_area <= area <= max_area:
+            # Check if the contour is approximately circular
+            perimeter = cv2.arcLength(contour, True)
+            if perimeter > 0:
+                circularity = 4 * np.pi * area / (perimeter * perimeter)
+                if circularity > circularity_threshold:
+                    M = cv2.moments(contour)
+                    if M["m00"] != 0:
+                        cX = int(M["m10"] / M["m00"])
+                        cY = int(M["m01"] / M["m00"])
+                        detected_dots.append((cX, cY, area))
+    
+    return detected_dots
+
+def merge_detections(bright_dots, contour_dots, max_distance=10) -> List[Tuple[int, int, float]]:
+    """
+    Merge detections from different methods, removing duplicates.
+    
+    Parameters:
+      bright_dots (list): List of dots detected by brightness method.
+      contour_dots (list): List of dots detected by contour method.
+      max_distance (int): Maximum distance to consider dots as duplicates.
+      
+    Returns:
+      List of merged unique dots.
+    """
+    merged_dots = list(bright_dots)  # Start with all brightness-detected dots
+    
+    # Check each contour dot against brightness dots to avoid duplicates
+    for c_dot in contour_dots:
+        c_x, c_y, c_area = c_dot
+        is_duplicate = False
+        
+        for b_dot in bright_dots:
+            b_x, b_y, _ = b_dot
+            # Calculate distance between dots
+            distance = np.sqrt((c_x - b_x)**2 + (c_y - b_y)**2)
+            if distance < max_distance:
+                is_duplicate = True
+                break
+        
+        # If not a duplicate, add to merged list
+        if not is_duplicate:
+            merged_dots.append(c_dot)
+    
+    return merged_dots
+
+def detect_targets(frame, detection_mode="hybrid", config=None) -> List[Tuple[int, int, float]]:
+    """
+    Multi-mode target detection that can use different techniques.
+    
+    Parameters:
+      frame (numpy.ndarray): The input image in BGR format.
+      detection_mode (str): Detection method ("brightness", "contour", "hybrid")
+      config (dict): Configuration dictionary with detection parameters
+      
+    Returns:
+      List of tuples (x, y, area) for each detected dot.
+    """
+    # Set default parameters if config not provided
+    if config is None:
+        config = {
+            "min_area": 5,
+            "max_area": 500,
+            "threshold_value": 245,
+            "circularity_threshold": 0.7
+        }
+    
+    if detection_mode == "brightness":
+        return detect_bright_dots(frame, 
+                                  min_area=config.get("min_area", 5), 
+                                  threshold_value=config.get("threshold_value", 245))
+    
+    elif detection_mode == "contour":
+        return detect_targets_by_contour(frame, 
+                                        min_area=config.get("min_area", 5),
+                                        max_area=config.get("max_area", 500),
+                                        circularity_threshold=config.get("circularity_threshold", 0.7))
+    
+    elif detection_mode == "hybrid":
+        # Combine multiple detection methods for better accuracy
+        bright_dots = detect_bright_dots(frame, 
+                                        min_area=config.get("min_area", 5), 
+                                        threshold_value=config.get("threshold_value", 245))
+        
+        contour_dots = detect_targets_by_contour(frame, 
+                                                min_area=config.get("min_area", 5),
+                                                max_area=config.get("max_area", 500),
+                                                circularity_threshold=config.get("circularity_threshold", 0.7))
+        
+        return merge_detections(bright_dots, contour_dots, max_distance=config.get("merge_distance", 10))
+    
+    else:
+        # Default to brightness method
+        return detect_bright_dots(frame, 
+                                 min_area=config.get("min_area", 5), 
+                                 threshold_value=config.get("threshold_value", 245))
+
+def validate_square(dots: List[Tuple[int, int, float]], tolerance: float = 0.2) -> bool:
+    """
+    Validate if the detected dots form a square.
+    Parameters:
+      dots (list): List of detected dots as (x, y, area).
+      tolerance (float): Allowed deviation from a perfect square.
+    Returns:
+      bool: True if the dots form a square, False otherwise.
+    """
+    if len(dots) != 4:
+        return False
+
+    # Calculate pairwise distances between all dots.
+    distances = []
+    for i in range(len(dots)):
+        for j in range(i + 1, len(dots)):
+            x1, y1, _ = dots[i]
+            x2, y2, _ = dots[j]
+            distance = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+            distances.append(distance)
+
+    distances.sort()
+    # In a perfect square, the four smaller distances are the sides, and the two larger ones are the diagonals.
+    sides = distances[:4]
+    diagonals = distances[4:]
+    side_avg = sum(sides) / len(sides)
+    diag_avg = sum(diagonals) / len(diagonals)
+
+    side_deviation = max(abs(s - side_avg) for s in sides) / side_avg
+    diag_deviation = max(abs(d - diag_avg) for d in diagonals) / diag_avg
+
+    return side_deviation < tolerance and diag_deviation < tolerance
+
+
+def find_square_in_dots(dots: List[Tuple[int, int, float]], tolerance: float = 0.2) -> Optional[List[Tuple[int, int, float]]]:
+    """
+    Search for a combination of four bright dots that form a square.
+    Parameters:
+      dots (list): List of detected dots.
+      tolerance (float): Allowed deviation from a perfect square.
+    Returns:
+      list: The four dots that form a valid square or None if not found.
+    """
+    if len(dots) < 4:
+        return None
+    for combo in combinations(dots, 4):
+        combo_list = list(combo)
+        if validate_square(combo_list, tolerance):
+            return combo_list
+    return None
+
+
+def draw_square(frame, dots: List[Tuple[int, int, float]], color=(0, 255, 0), thickness=2):
+    """
+    Draw a square around the detected dots.
+    Parameters:
+      frame (numpy.ndarray): Input image (BGR).
+      dots (list): List of detected dots as (x, y, area).
+      color (tuple): BGR color for drawing.
+      thickness (int): Thickness of the lines.
+    Returns:
+      numpy.ndarray: Frame with the square drawn.
+    """
+    if len(dots) != 4:
+        return frame
+
+    # Sort dots according to their positions: top-left, top-right, bottom-right, bottom-left.
+    sorted_by_y = sorted(dots, key=lambda d: d[1])
+    top_two = sorted(sorted_by_y[:2], key=lambda d: d[0])    # top-left, top-right
+    bottom_two = sorted(sorted_by_y[2:], key=lambda d: d[0])   # bottom-left, bottom-right
+    ordered = [top_two[0], top_two[1], bottom_two[1], bottom_two[0]]
+
+    # Draw lines connecting the dots.
+    for i in range(4):
+        pt1 = (ordered[i][0], ordered[i][1])
+        pt2 = (ordered[(i + 1) % 4][0], ordered[(i + 1) % 4][1])
+        cv2.line(frame, pt1, pt2, color, thickness)
+
+    return frame
+
 
 class TargetTracker:
     def __init__(self, 
                  frame_width: int = 640, 
                  frame_height: int = 480,
-                 history_length: int = 5):
+                 history_length: int = 5,
+                 tolerance: float = 0.2):
         """
-        Advanced target tracking with adaptive detection and filtering
+        Advanced target tracking with detection of a square formed by four bright dots.
+        
+        This class provides functionality to detect and track a square target formed by
+        four bright dots in a video stream. It uses a Kalman filter for smooth tracking
+        and maintains a history of target positions.
         
         Args:
-            frame_width (int): Camera frame width
-            frame_height (int): Camera frame height
-            history_length (int): Number of frames to maintain for tracking
+            frame_width (int): Width of the camera frame in pixels.
+            frame_height (int): Height of the camera frame in pixels.
+            history_length (int): Number of frames to maintain in tracking history.
+            tolerance (float): Tolerance for geometric deviation in square validation (0.0-1.0).
+                               Lower values enforce stricter square geometry.
         """
         self.frame_width = frame_width
         self.frame_height = frame_height
         self.history_length = history_length
+        self.tolerance = tolerance
         
-        # Target tracking parameters
         self.target_history = []
         self.last_detection_time = time.time()
         self.detection_timeout = 2.0  # seconds
-        
-        # Kalman Filter for smooth tracking
+
+        # Kalman Filter for smooth tracking (tracking using square center)
         self.kalman_filter = cv2.KalmanFilter(4, 2)
         self.kalman_filter.measurementMatrix = np.array([[1, 0, 0, 0], 
                                                          [0, 1, 0, 0]], np.float32)
@@ -42,351 +295,82 @@ class TargetTracker:
                                                        [0, 0, 1, 0],
                                                        [0, 0, 0, 1]], np.float32) * 0.03
 
-    def detect_advanced_target(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
+    def _update_target_history(self, center: Tuple[int, int]):
         """
-        Advanced target detection with multiple techniques
+        Update target history using the square's center.
+        
+        This method updates the internal tracking history with the new target center
+        and applies Kalman filtering for smoother tracking.
         
         Args:
-            frame (np.ndarray): Input camera frame
-        
-        Returns:
-            Optional tuple of (x, y) coordinates
+            center (Tuple[int, int]): Center coordinate (x, y) of the detected square.
         """
-        # Convert to grayscale and apply multiple detection techniques
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
-        # Multi-stage detection
-        methods = [
-            self._detect_by_brightness(gray),
-            self._detect_by_color_contrast(frame),
-            self._detect_by_edge_detection(gray)
-        ]
-        
-        # Filter and validate detections
-        valid_detections = [m for m in methods if m is not None]
-        
-        if not valid_detections:
-            return None
-        
-        # Choose most consistent detection
-        target = self._choose_best_detection(valid_detections)
-        
-        if target:
-            self._update_target_history(target)
-            return target
-        
-        return None
-
-    def _detect_by_brightness(self, gray: np.ndarray) -> Optional[Tuple[int, int]]:
-        """Detect brightest point with adaptive thresholding"""
-        _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        if contours:
-            largest_contour = max(contours, key=cv2.contourArea)
-            M = cv2.moments(largest_contour)
-            
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-                return (cx, cy)
-        
-        return None
-
-    def _detect_by_color_contrast(self, frame: np.ndarray) -> Optional[Tuple[int, int]]:
-        """Detect high-contrast color regions"""
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        
-        # Define color ranges for high contrast
-        lower_green = np.array([40, 100, 100])
-        upper_green = np.array([80, 255, 255])
-        
-        mask = cv2.inRange(hsv, lower_green, upper_green)
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        if contours:
-            largest_contour = max(contours, key=cv2.contourArea)
-            M = cv2.moments(largest_contour)
-            
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-                return (cx, cy)
-        
-        return None
-
-    def _detect_by_edge_detection(self, gray: np.ndarray) -> Optional[Tuple[int, int]]:
-        """Detect high-edge regions"""
-        edges = cv2.Canny(gray, 100, 200)
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        if contours:
-            largest_contour = max(contours, key=cv2.contourArea)
-            M = cv2.moments(largest_contour)
-            
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-                return (cx, cy)
-        
-        return None
-
-    def _choose_best_detection(self, detections: List[Tuple[int, int]]) -> Optional[Tuple[int, int]]:
-        """
-        Choose the most consistent detection based on proximity to recent history
-        
-        Args:
-            detections (List[Tuple[int, int]]): List of detected points
-        
-        Returns:
-            Optional tuple of best detection
-        """
-        if not self.target_history:
-            return detections[0] if detections else None
-        
-        # Calculate distances from recent targets
-        recent_target = self.target_history[-1]
-        best_detection = min(detections, key=lambda x: np.linalg.norm(np.array(x) - np.array(recent_target)))
-        
-        return best_detection
-
-    def _update_target_history(self, target: Tuple[int, int]):
-        """
-        Update target tracking history with Kalman filter prediction
-        
-        Args:
-            target (Tuple[int, int]): Detected target coordinates
-        """
-        # Predict next state using Kalman filter
-        prediction = self.kalman_filter.predict()
-        
-        # Update Kalman filter with measurement
-        measurement = np.array(target, dtype=np.float32)
+        # Predict next state using Kalman filter.
+        _ = self.kalman_filter.predict()
+        measurement = np.array(center, dtype=np.float32)
         self.kalman_filter.correct(measurement)
-        
-        # Update history
-        self.target_history.append(target)
-        
-        # Maintain fixed history length
+
+        self.target_history.append(center)
         if len(self.target_history) > self.history_length:
             self.target_history.pop(0)
-        
         self.last_detection_time = time.time()
+
+    def predict_target_position(self) -> Optional[Tuple[int, int]]:
+        """
+        Predict target position when detection fails using Kalman filter.
+        
+        Returns:
+            Tuple[int, int]: Predicted center coordinates (x, y) or None if prediction not possible.
+        """
+        if time.time() - self.last_detection_time > self.detection_timeout:
+            return None
+        
+        prediction = self.kalman_filter.predict()
+        predicted_center = (int(prediction[0]), int(prediction[1]))
+        return predicted_center
+
+    def detect_advanced_target(self, frame: np.ndarray, detection_mode="hybrid", config=None) -> Optional[List[Tuple[int, int, float]]]:
+        """
+        Detect a square target consisting of four bright dots.
+        
+        This method analyzes a video frame to find four bright dots arranged in a square
+        pattern. If a valid square is found, it updates the tracking history.
+        
+        Args:
+            frame (np.ndarray): Camera frame in BGR format.
+            detection_mode (str): Detection method to use
+            config (dict): Configuration parameters
+            
+        Returns:
+            List of four dots as [(x1, y1, area1), (x2, y2, area2), ...] if a valid square 
+            is detected; otherwise, None.
+        """
+        # Use the selected detection method
+        dots = detect_targets(frame, detection_mode=detection_mode, config=config)
+        square_dots = find_square_in_dots(dots, self.tolerance)
+        
+        if square_dots is not None:
+            # Compute the center of the square to update the tracking history.
+            xs = [pt[0] for pt in square_dots]
+            ys = [pt[1] for pt in square_dots]
+            center = (int(sum(xs) / 4), int(sum(ys) / 4))
+            self._update_target_history(center)
+            return square_dots
+        
+        # If no square is detected, try to predict position based on history
+        if not square_dots and self.target_history:
+            return None  # Still return None since we didn't actually detect the square
+            
+        return None
 
     def get_target_trajectory(self) -> List[Tuple[int, int]]:
         """
-        Get recent target trajectory
+        Get recent target trajectory as stored by the tracking history.
+        
+        This method returns the history of target positions, which can be used
+        to visualize the target's movement path.
         
         Returns:
-            List of target coordinates
+            List of target center coordinates as [(x1, y1), (x2, y2), ...].
         """
         return self.target_history
-
-def detect_green_dots(frame, min_area=50):
-    """
-    Detect bright green dots in the frame.
-
-    Parameters:
-    frame (numpy.ndarray): Input BGR image.
-    min_area (int): Minimum area of a dot to be considered valid.
-
-    Returns:
-    list: List of detected dots as (x, y, area).
-    """
-    # Convert the frame to HSV for better color segmentation
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-    # Define the range for bright neon green color
-    lower_green = np.array([40, 200, 200])  # Adjust these values for neon green
-    upper_green = np.array([70, 255, 255])
-
-    # Create a mask for green color
-    mask = cv2.inRange(hsv, lower_green, upper_green)
-
-    # Find contours in the mask
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    detected_dots = []
-    for contour in contours:
-        area = cv2.contourArea(contour)
-        if area > min_area:
-            M = cv2.moments(contour)
-            if M["m00"] != 0:
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
-                detected_dots.append((cX, cY, area))
-
-    return detected_dots
-
-def validate_square(dots, tolerance=0.2):
-    """
-    Validate if the detected dots form a square.
-
-    Parameters:
-    dots (list): List of detected dots as (x, y, area).
-    tolerance (float): Allowed deviation from a perfect square.
-
-    Returns:
-    bool: True if the dots form a square, False otherwise.
-    """
-    if len(dots) != 4:
-        return False
-
-    # Calculate pairwise distances between all dots
-    distances = []
-    for i in range(len(dots)):
-        for j in range(i + 1, len(dots)):
-            x1, y1, _ = dots[i]
-            x2, y2, _ = dots[j]
-            distance = sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
-            distances.append(distance)
-
-    # Sort distances and group them into sides and diagonals
-    distances.sort()
-    side = distances[:4]
-    diagonal = distances[4:]
-
-    # Check if the sides are approximately equal and diagonals are approximately equal
-    side_avg = sum(side) / len(side)
-    diagonal_avg = sum(diagonal) / len(diagonal)
-
-    side_deviation = max(abs(s - side_avg) for s in side) / side_avg
-    diagonal_deviation = max(abs(d - diagonal_avg) for d in diagonal) / diagonal_avg
-
-    return side_deviation < tolerance and diagonal_deviation < tolerance
-
-
-def draw_square(frame, dots, color=(0, 255, 0), thickness=2):
-    """
-    Draw a square around the detected dots.
-
-    Parameters:
-    frame (numpy.ndarray): Input image (BGR).
-    dots (list): List of detected dots as (x, y, area).
-    color (tuple): BGR color for drawing.
-    thickness (int): Thickness of the lines.
-
-    Returns:
-    numpy.ndarray: Frame with the square drawn.
-    """
-    if len(dots) != 4:
-        return frame
-
-    # Sort dots by x-coordinate, then by y-coordinate
-    dots = sorted(dots, key=lambda dot: (dot[0], dot[1]))
-
-    # Draw lines between the dots
-    for i in range(len(dots)):
-        x1, y1, _ = dots[i]
-        x2, y2, _ = dots[(i + 1) % len(dots)]
-        cv2.line(frame, (x1, y1), (x2, y2), color, thickness)
-
-    return frame
-
-# def detect_single_target(frame, threshold=200, min_area=50):
-#     """
-#     Detect the brightest spot in a grayscale image, assumed to be the Photo Beam Sensor/Retroreflector.
-
-#     Parameters:
-#     frame (numpy.ndarray): Input grayscale image
-#     threshold (int): Brightness threshold for target detection (0-255)
-#     min_area (int): Minimum area of a target to be considered valid
-
-#     Returns:
-#     tuple: Detected target represented as (x, y, area), or None if no target found
-#     """
-#     # Ensure the frame is grayscale
-#     if len(frame.shape) > 2:
-#         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-#     else:
-#         gray = frame
-
-#     # Threshold the image to isolate bright spots
-#     _, thresh = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
-
-#     # Apply morphological operations to reduce noise
-#     kernel = np.ones((5, 5), np.uint8)
-#     thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-
-#     # Find contours in the thresholded image
-#     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-#     # Find the largest contour above the minimum area
-#     largest_contour = None
-#     largest_area = 0
-#     for contour in contours:
-#         area = cv2.contourArea(contour)
-#         if area > min_area and area > largest_area:
-#             largest_contour = contour
-#             largest_area = area
-
-#     # If a valid contour is found, calculate its centroid
-#     if largest_contour is not None:
-#         M = cv2.moments(largest_contour)
-#         if M["m00"] != 0:
-#             cX = int(M["m10"] / M["m00"])
-#             cY = int(M["m01"] / M["m00"])
-#             return (cX, cY, largest_area)
-
-#     return None
-
-# def draw_targets(frame, targets, color=(0, 255, 0), radius=5, thickness=2):
-#     """
-#     Draw detected targets on the frame.
-
-#     Parameters:
-#     frame (numpy.ndarray): Input image (BGR)
-#     targets (list): List of targets, each represented as (x, y, area)
-#     color (tuple): BGR color for drawing
-#     radius (int): Radius of the circle to be drawn
-#     thickness (int): Thickness of the circle's line
-
-#     Returns:
-#     numpy.ndarray: Frame with targets drawn
-#     """
-#     for x, y, _ in targets:
-#         cv2.circle(frame, (x, y), radius, color, thickness)
-#         cv2.putText(frame, f"({x}, {y})", (x + 10, y), 
-#                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
-#     return frame
-
-# def map_coordinates(x, y, frame_width, frame_height, out_width, out_height):
-#     """
-#     Map pixel coordinates to a different coordinate system.
-
-#     Parameters:
-#     x, y (int): Input pixel coordinates
-#     frame_width, frame_height (int): Dimensions of the input frame
-#     out_width, out_height (int): Dimensions of the output coordinate system
-
-#     Returns:
-#     tuple: Mapped (x, y) coordinates
-#     """
-#     mapped_x = (x / frame_width) * out_width
-#     mapped_y = (y / frame_height) * out_height
-#     return (mapped_x, mapped_y)
-
-# def map_to_spherical_angles(x, y, frame_width, frame_height, theta_min, theta_max, phi_min, phi_max):
-#     """
-#     Map pixel coordinates to spherical angles (azimuth and altitude).
-
-#     Parameters:
-#     x, y (int): Input pixel coordinates
-#     frame_width, frame_height (int): Dimensions of the input frame
-#     theta_min, theta_max (float): Minimum and maximum azimuth angles
-#     phi_min, phi_max (float): Minimum and maximum altitude angles
-
-#     Returns:
-#     tuple: Mapped (theta, phi) angles
-#     """
-#     # Normalize the pixel coordinates to a range of 0 to 1
-#     normalized_x = x / frame_width
-#     normalized_y = y / frame_height
-
-#     # Map normalized coordinates to angle ranges
-#     theta = theta_min + (theta_max - theta_min) * normalized_x
-#     phi = phi_min + (phi_max - phi_min) * (1 - normalized_y)  # Invert y for altitude
-
-#     return (theta, phi)
-
-# -----

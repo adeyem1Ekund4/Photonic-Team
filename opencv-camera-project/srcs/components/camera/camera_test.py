@@ -112,38 +112,34 @@ def main():
                            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
             # Try to find a square arrangement
-            square_dots = target_tracker.detect_advanced_target(
+            square_dots, square_center = target_tracker.detect_advanced_target(
                 frame, 
                 detection_mode=detection_method,
                 config=detection_config
             )
-            
+
             if square_dots:
                 # Draw the detected square
                 display_frame = draw_square(display_frame, square_dots, color=(0, 255, 0), thickness=2)
-                
-                # Compute and display center
-                xs = [pt[0] for pt in square_dots]
-                ys = [pt[1] for pt in square_dots]
-                center = (int(sum(xs) / 4), int(sum(ys) / 4))
-                
+
+                # `square_center` now contains the center coordinates
                 if display_config["show_detection_info"]:
-                    cv2.putText(display_frame, "Square Detected!", (center[0] - 60, center[1]), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-                
+                    cv2.putText(display_frame, "Square Detected!", (square_center[0] - 60, square_center[1]), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+
                 # Draw a crosshair at the center
-                cv2.drawMarker(display_frame, center, (0, 0, 255), cv2.MARKER_CROSS, 20, 2)
+                cv2.drawMarker(display_frame, square_center, (0, 0, 255), cv2.MARKER_CROSS, 20, 2)
             else:
                 # If no square detected, try to show predicted position
                 predicted_center = target_tracker.predict_target_position()
                 if predicted_center:
                     # Draw predicted position with different color (yellow)
                     cv2.drawMarker(display_frame, predicted_center, (0, 255, 255), 
-                                  cv2.MARKER_CROSS, 20, 2)
+                                cv2.MARKER_CROSS, 20, 2)
                     if display_config["show_detection_info"]:
                         cv2.putText(display_frame, "Predicted Position", 
-                                   (predicted_center[0] - 80, predicted_center[1] - 20), 
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                                (predicted_center[0] - 80, predicted_center[1] - 20), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
             
             # Draw target trajectory
             trajectory = target_tracker.get_target_trajectory()

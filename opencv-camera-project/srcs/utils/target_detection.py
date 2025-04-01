@@ -329,7 +329,7 @@ class TargetTracker:
         predicted_center = (int(prediction[0]), int(prediction[1]))
         return predicted_center
 
-    def detect_advanced_target(self, frame: np.ndarray, detection_mode="hybrid", config=None) -> Optional[List[Tuple[int, int, float]]]:
+    def detect_advanced_target(self, frame: np.ndarray, detection_mode="hybrid", config=None) -> Tuple[Optional[List[Tuple[int, int, float]]], Optional[Tuple[int, int]]]:
         """
         Detect a square target consisting of four bright dots.
         
@@ -342,8 +342,10 @@ class TargetTracker:
             config (dict): Configuration parameters
             
         Returns:
-            List of four dots as [(x1, y1, area1), (x2, y2, area2), ...] if a valid square 
-            is detected; otherwise, None.
+            Tuple containing:
+            - List of four dots as [(x1, y1, area1), (x2, y2, area2), ...] if a valid square 
+              is detected; otherwise, None.
+            - Center coordinates (x, y) of the detected square, or None if no square is detected.
         """
         # Use the selected detection method
         dots = detect_targets(frame, detection_mode=detection_mode, config=config)
@@ -355,13 +357,13 @@ class TargetTracker:
             ys = [pt[1] for pt in square_dots]
             center = (int(sum(xs) / 4), int(sum(ys) / 4))
             self._update_target_history(center)
-            return square_dots
+            return square_dots, center  # Return both the corners and the center
         
         # If no square is detected, try to predict position based on history
         if not square_dots and self.target_history:
-            return None  # Still return None since we didn't actually detect the square
+            return None, None  # Still return None since we didn't actually detect the square
             
-        return None
+        return None, None
 
     def get_target_trajectory(self) -> List[Tuple[int, int]]:
         """

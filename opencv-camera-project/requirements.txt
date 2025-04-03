@@ -1,4 +1,3 @@
-# requirements.txt
 # opencv-camera-project/requirements.txt
-opencv-python==4.5.5.64
-numpy>=1.19.0
+opencv-python==4.10.0.84
+numpy>=1.23.5

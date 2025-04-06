@@ -14,11 +14,11 @@
     "detection": {
         "method": "hybrid",
         "min_area": 76,
-        "max_area": 551,
-        "threshold_value": 92,
+        "max_area": 885,
+        "threshold_value": 80,
         "square_tolerance": 0.46,
         "history_length": 5,
-        "circularity_threshold": 0.14,
+        "circularity_threshold": 0.13,
         "merge_distance": 10,
         "edge_detection": {
             "low_threshold": 50,

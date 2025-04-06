@@ -7,7 +7,6 @@ from typing import List, Tuple, Optional
 
 class CameraSelector:
     def __init__(self):
-        """Initialize the camera selector to detect cameras."""
         self.available_cameras = self._find_cameras()
         
     def _find_cameras(self) -> List[Tuple[int, str]]:
@@ -51,12 +50,6 @@ class CameraSelector:
         return available
     
     def select_camera(self) -> Optional[int]:
-        """
-        Display a GUI dialog with dropdown for camera selection.
-        
-        Returns:
-            Selected camera index or None if canceled
-        """
         if not self.available_cameras:
             print("No cameras detected!")
             return None

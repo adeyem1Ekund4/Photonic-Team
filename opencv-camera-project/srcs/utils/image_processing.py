@@ -6,17 +6,6 @@ def apply_grayscale(frame):
     return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
 def adjust_brightness_contrast(image, brightness=0, contrast=0):
-    """
-    Adjust the brightness and contrast of an image.
-    
-    Args:
-        image: Input image (numpy array)
-        brightness: Brightness adjustment factor (-100 to 100)
-        contrast: Contrast adjustment factor (-100 to 100)
-        
-    Returns:
-        Adjusted image
-    """
     # Brightness adjustment
     if brightness != 0:
         if brightness > 0:
@@ -41,32 +30,13 @@ def adjust_brightness_contrast(image, brightness=0, contrast=0):
     return np.clip(image, 0, 255).astype(np.uint8)
 
 def sharpen_image(image, kernel_size=3, sigma=1.0, amount=1.0):
-    """
-    Sharpen an image using unsharp masking.
-    
-    Args:
-        image: Input image
-        kernel_size: Size of the Gaussian blur kernel
-        sigma: Standard deviation for Gaussian kernel
-        amount: Strength of sharpening effect (0.0 to 2.0 recommended)
-        
-    Returns:
-        Sharpened image
-    """
+
     blurred = cv2.GaussianBlur(image, (kernel_size, kernel_size), sigma)
     sharpened = cv2.addWeighted(image, 1.0 + amount, blurred, -amount, 0)
     return np.clip(sharpened, 0, 255).astype(np.uint8)
 
 def auto_adjust_levels(image):
-    """
-    Automatically adjust image levels to enhance contrast.
-    
-    Args:
-        image: Input image
-        
-    Returns:
-        Level-adjusted image
-    """
+
     # For color images, apply to each channel
     if len(image.shape) == 3:
         result = np.zeros_like(image)
@@ -78,16 +48,7 @@ def auto_adjust_levels(image):
         return cv2.equalizeHist(image)
     
 def resize_frame(frame, scale=0.5):
-    """
-    Resize a frame by a given scale factor.
-    
-    Args:
-        frame: Input image (numpy array)
-        scale: Scale factor (0.5 = half size)
-        
-    Returns:
-        Resized image
-    """
+
     width = int(frame.shape[1] * scale)
     height = int(frame.shape[0] * scale)
     return cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)

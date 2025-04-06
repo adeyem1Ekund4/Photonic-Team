@@ -4,56 +4,52 @@ import numpy as np
 from itertools import combinations
 
 
-def detect_green_regions_hsv(frame, lower_green=np.array([40, 50, 50]), upper_green=np.array([80, 255, 255])):
-    """
-    Detect green regions in the frame via HSV segmentation.
+def detect_green_regions_hsv(frame, config=None):
+    """Detect green regions using HSV color space with configurable parameters."""
+    if config is None:
+        config = {}
     
-    Args:
-        frame (numpy.ndarray): Input image in BGR format.
-        lower_green (numpy.ndarray): Lower bound for HSV green.
-        upper_green (numpy.ndarray): Upper bound for HSV green.
-        
-    Returns:
-        mask (numpy.ndarray): Binary mask of green regions.
-    """
+    # Get parameters from config or use defaults
+    hue_min = config.get("hue_min", 40)
+    hue_max = config.get("hue_max", 80)
+    sat_min = config.get("sat_min", 50)
+    val_min = config.get("val_min", 50)
+    morph_iterations = config.get("morphIterations", 1)
+    
+    # Create HSV range
+    lower_green = np.array([hue_min, sat_min, val_min])
+    upper_green = np.array([hue_max, 255, 255])
+    
+    # Convert to HSV and create mask
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, lower_green, upper_green)
+    
+    # Apply morphological operations
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=morph_iterations)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=morph_iterations)
+    
     return mask
 
-def detect_corners_in_mask(mask, maxCorners=100, qualityLevel=0.01, minDistance=10):
-    """
-    Detect corner features within the green mask using Shi-Tomasi corner detection.
+def detect_corners_in_mask(mask, config=None):
+    """Detect corners in the mask with configurable parameters."""
+    if config is None:
+        config = {}
     
-    Args:
-        mask (numpy.ndarray): Binary mask from the green segmentation.
-        maxCorners (int): Maximum number of corners to return.
-        qualityLevel (float): Parameter characterizing the minimal accepted quality.
-        minDistance (int): Minimum possible Euclidean distance between the returned corners.
-        
-    Returns:
-        List of corner points (x, y) as tuples.
-    """
-    corners = cv2.goodFeaturesToTrack(mask, maxCorners=maxCorners, qualityLevel=qualityLevel, minDistance=minDistance)
+    # Get parameters from config or use defaults
+    max_corners = config.get("maxCorners", 100)
+    quality_level = config.get("qualityLevel", 0.01)
+    min_distance = config.get("minDistance", 10)
+    
+    corners = cv2.goodFeaturesToTrack(mask, maxCorners=max_corners, 
+                                     qualityLevel=quality_level, 
+                                     minDistance=min_distance)
     if corners is not None:
         corners = np.int0(corners)
         return [tuple(c.ravel()) for c in corners]
     return []
 
 def rank_and_select_quad(corners):
-    """
-    From candidate corner points, select four that form the best quadrilateral based on area.
-    This brute-force approach cycles through all combinations of four points and returns the combination
-    whose convex hull has the largest area.
-    
-    Args:
-        corners (list): List of candidate corner points.
-        
-    Returns:
-        best_quad (tuple): A tuple of 4 points (each a (x, y) tuple) or None if not found.
-    """
     if len(corners) < 4:
         return None
 
@@ -70,15 +66,6 @@ def rank_and_select_quad(corners):
     return best_quad
 
 def order_points(pts):
-    """
-    Order four points in a consistent order: top-left, top-right, bottom-right, bottom-left.
-    
-    Args:
-        pts (list or numpy.ndarray): List of four (x, y) points.
-        
-    Returns:
-        ordered (numpy.ndarray): Array of ordered points.
-    """
     pts = np.array(pts, dtype="float32")
     # The top-left will have the smallest sum and bottom-right the largest sum
     s = pts.sum(axis=1)
@@ -93,16 +80,6 @@ def order_points(pts):
     return ordered
 
 def perspective_transform(frame, quad):
-    """
-    Apply a perspective transformation to the detected quadrilateral area to yield a normalized square view.
-    
-    Args:
-        frame (numpy.ndarray): Original image.
-        quad (list): List of four ordered corner points.
-        
-    Returns:
-        warped (numpy.ndarray): Warped (normalized) view of the quadrilateral.
-    """
     ordered = order_points(quad)
     (tl, tr, br, bl) = ordered
 
@@ -128,26 +105,43 @@ def perspective_transform(frame, quad):
     warped = cv2.warpPerspective(frame, M, (maxWidth, maxHeight))
     return warped
 
-def detect_green_corners(frame):
-    """
-    Full pipeline for green corner detection on a box with green tape markers. Steps include:
-      1. Green region segmentation using HSV.
-      2. Corner detection (using Shi-Tomasi) on the segmented mask.
-      3. Ranking to select the best four candidate corners forming a quadrilateral.
-      4. Optionally, applying a perspective transformation.
-    
-    Args:
-        frame (numpy.ndarray): Input image in BGR format.
+class CornerTracker:
+    def __init__(self, history_length=5):
+        self.corner_history = []
+        self.history_length = history_length
         
-    Returns:
-        quad (tuple): The four corner points of the detected quadrilateral (or None if not found).
-        perspective_view (numpy.ndarray): The warped image of the quadrilateral area (or None).
-    """
+    def update(self, corners):
+        if corners is not None:
+            self.corner_history.append(corners)
+            if len(self.corner_history) > self.history_length:
+                self.corner_history.pop(0)
+                
+    def get_smoothed_corners(self):
+        if not self.corner_history:
+            return None
+            
+        # Average the corner positions over history
+        smoothed = []
+        for i in range(4):  # Assuming 4 corners
+            x_sum = sum(history[i][0] for history in self.corner_history if len(history) > i)
+            y_sum = sum(history[i][1] for history in self.corner_history if len(history) > i)
+            count = sum(1 for history in self.corner_history if len(history) > i)
+            
+            if count > 0:
+                smoothed.append((x_sum/count, y_sum/count))
+                
+        return smoothed if len(smoothed) == 4 else None
+
+def detect_green_corners(frame, config=None):
+    """Detect green corners in the frame with configurable parameters."""
+    if config is None:
+        config = {}
+    
     # Phase 1: Detect green regions.
-    mask = detect_green_regions_hsv(frame)
+    mask = detect_green_regions_hsv(frame, config)
     
     # Phase 2: Detect candidate corner points within the green regions.
-    corners = detect_corners_in_mask(mask)
+    corners = detect_corners_in_mask(mask, config)
     
     # Phase 3: Select four corners that form the best quadrilateral.
     quad = rank_and_select_quad(corners)
@@ -156,28 +150,73 @@ def detect_green_corners(frame):
     if quad is not None:
         ordered_quad = order_points(quad)
         perspective_view = perspective_transform(frame, ordered_quad)
-    return quad, perspective_view
+    return quad, perspective_view, mask  # Also return mask for debugging
 
 # The module can be tested independently:
 if __name__ == "__main__":
     cap = cv2.VideoCapture(0)
+    
+    # Create a simple window for adjusting parameters
+    cv2.namedWindow("Controls")
+    cv2.createTrackbar("Hue Min", "Controls", 40, 179, lambda x: None)
+    cv2.createTrackbar("Hue Max", "Controls", 80, 179, lambda x: None)
+    cv2.createTrackbar("Sat Min", "Controls", 50, 255, lambda x: None)
+    cv2.createTrackbar("Val Min", "Controls", 50, 255, lambda x: None)
+    cv2.createTrackbar("Quality Level", "Controls", 1, 100, lambda x: None)
+    cv2.createTrackbar("Min Distance", "Controls", 10, 50, lambda x: None)
+    cv2.createTrackbar("Morph Iterations", "Controls", 1, 5, lambda x: None)
+    
+    # Initialize corner tracker for smoothing
+    corner_tracker = CornerTracker(history_length=5)
+    
     while True:
         ret, frame = cap.read()
         if not ret:
             break
         
-        quad, transformed = detect_green_corners(frame)
+        # Get parameters from trackbars
+        config = {
+            "hue_min": cv2.getTrackbarPos("Hue Min", "Controls"),
+            "hue_max": cv2.getTrackbarPos("Hue Max", "Controls"),
+            "sat_min": cv2.getTrackbarPos("Sat Min", "Controls"),
+            "val_min": cv2.getTrackbarPos("Val Min", "Controls"),
+            "qualityLevel": cv2.getTrackbarPos("Quality Level", "Controls") / 100.0,
+            "minDistance": cv2.getTrackbarPos("Min Distance", "Controls"),
+            "morphIterations": cv2.getTrackbarPos("Morph Iterations", "Controls")
+        }
+        
+        # Detect green corners
+        quad, transformed, mask = detect_green_corners(frame, config)
+        
+        # Update corner tracker
         if quad is not None:
-            # Draw corner points
-            for point in quad:
-                cv2.circle(frame, tuple(map(int, point)), 5, (0, 255, 0), -1)
+            corner_tracker.update(quad)
+            
+        # Get smoothed corners
+        smoothed_quad = corner_tracker.get_smoothed_corners()
+        
+        # Display mask for debugging
+        cv2.imshow("Green Mask", mask)
+        
+        if smoothed_quad is not None:
+            # Draw smoothed corner points
+            for point in smoothed_quad:
+                cv2.circle(frame, tuple(map(int, point)), 5, (255, 0, 0), -1)
             
             # Draw lines between the points (using the ordered quadrilateral)
-            pts = order_points(quad)
+            pts = order_points(smoothed_quad)
             for i in range(4):
-                cv2.line(frame, tuple(pts[i]), tuple(pts[(i+1)%4]), (0, 0, 255), 2)
+                pt1 = tuple(map(int, pts[i]))
+                pt2 = tuple(map(int, pts[(i+1)%4]))
+                cv2.line(frame, pt1, pt2, (0, 0, 255), 2)
+            
             cv2.putText(frame, "Square Detected", (int(pts[0][0]), int(pts[0][1]) - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        
+        # If original (non-smoothed) corners detected, also show them
+        if quad is not None:
+            for point in quad:
+                cv2.circle(frame, tuple(map(int, point)), 3, (0, 255, 0), -1)
         
         cv2.imshow("Frame", frame)
         if transformed is not None:
@@ -186,5 +225,6 @@ if __name__ == "__main__":
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
             break
+            
     cap.release()
     cv2.destroyAllWindows()

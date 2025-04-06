@@ -33,13 +33,23 @@ class ConfigManager:
             "edge_detection": {
                 "low_threshold": 50,
                 "high_threshold": 150
-            }
+            },
+            # New parameters for green corner detection
+            "hue_min": 40,
+            "hue_max": 80,
+            "sat_min": 50,
+            "val_min": 50,
+            "qualityLevel": 0.01,
+            "minDistance": 10,
+            "maxCorners": 100,
+            "morphIterations": 1
         },
         "display": {
             "show_fps": True,
             "show_detection_info": True,
             "scale_factor": 1.0,
-            "show_control_panel": True
+            "show_control_panel": True,
+            "show_perspective": False
         },
         "save": {
             "save_detections": False,

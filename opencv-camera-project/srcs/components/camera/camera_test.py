@@ -10,16 +10,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'
 
 from components.camera.camera_handler import CameraHandler
 from components.camera.camera_selector import CameraSelector
-from utils.green_corner_detection import detect_green_corners, order_points
+from utils.green_corner_detection import detect_green_corners, order_points, CornerTracker
 from utils.image_processing import apply_grayscale, resize_frame
 from utils.config import ConfigManager
 from utils.performance_monitor import PerformanceMonitor
 from components.ui.control_panel import ControlPanel
 
 def main():
-    """
-    Main function for camera testing with green corner detection.
-    """
     print("Initializing Camera Tracking Application...")
     
     # Load configuration
@@ -54,15 +51,20 @@ def main():
     # Initialize control panel
     control_panel = ControlPanel(config_manager)
     
+    # Initialize corner tracker for temporal smoothing
+    corner_tracker = CornerTracker(history_length=detection_config.get("history_length", 5))
+    
     print("Camera initialized. Press 'q' to quit.")
     print("Press 'h' to hide/show control panel.")
     print("Press 'r' to reset detection parameters to defaults.")
     print("Press 'p' to toggle perspective view.")
+    print("Press 'm' to toggle mask view.")
     print("NOTE: Make sure the camera window is in focus when pressing keys")
     
     # Flag to control the main loop
     running = True
     show_perspective = display_config.get("show_perspective", False)
+    show_mask = False  # New flag to toggle mask display
     
     # List to store recent center positions for trajectory tracking
     trajectory = []
@@ -91,24 +93,37 @@ def main():
             # Get current detection configuration (may have been updated by control panel)
             detection_config = config_manager.get_detection_config()
             
-            # Detect green corners using the new method
-            quad, perspective_view = detect_green_corners(frame)
+            # Detect green corners using the updated method
+            quad, perspective_view, mask = detect_green_corners(frame, detection_config)
             
+            # Show mask if enabled
+            if show_mask:
+                cv2.imshow("Green Mask", mask)
+            elif cv2.getWindowProperty("Green Mask", cv2.WND_PROP_VISIBLE) > 0:
+                cv2.destroyWindow("Green Mask")
+            
+            # Update corner tracker with new quad
             if quad is not None:
-                # Draw points and quadrilateral lines
-                for point in quad:
+                corner_tracker.update(quad)
+            
+            # Get smoothed corners for display
+            smoothed_quad = corner_tracker.get_smoothed_corners()
+            
+            if smoothed_quad is not None:
+                # Draw points and quadrilateral lines using smoothed corners
+                for point in smoothed_quad:
                     cv2.circle(display_frame, tuple(map(int, point)), 5, (0, 255, 0), -1)
                 
                 # Order the points and draw the quadrilateral
-                pts = order_points(quad)
+                pts = order_points(smoothed_quad)
                 for i in range(4):
                     pt1 = tuple(map(int, pts[i]))
                     pt2 = tuple(map(int, pts[(i+1) % 4]))
                     cv2.line(display_frame, pt1, pt2, (0, 0, 255), 2)
                 
                 # Calculate the center of the quadrilateral
-                center_x = int(sum(p[0] for p in quad) / 4)
-                center_y = int(sum(p[1] for p in quad) / 4)
+                center_x = int(sum(p[0] for p in smoothed_quad) / 4)
+                center_y = int(sum(p[1] for p in smoothed_quad) / 4)
                 square_center = (center_x, center_y)
                 
                 # Update trajectory
@@ -153,8 +168,8 @@ def main():
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
             # Add quit instructions to the display
-            cv2.putText(display_frame, "Press 'q' to quit | 'h' for panel | 'p' for perspective", 
-                       (display_frame.shape[1] - 450, display_frame.shape[0] - 10), 
+            cv2.putText(display_frame, "Press 'q' to quit | 'h' for panel | 'p' for perspective | 'm' for mask", 
+                       (10, display_frame.shape[0] - 40), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
             
             # Show the display frame
@@ -176,6 +191,11 @@ def main():
                 show_perspective = not show_perspective
                 if not show_perspective and cv2.getWindowProperty("Perspective View", cv2.WND_PROP_VISIBLE) > 0:
                     cv2.destroyWindow("Perspective View")
+            elif key == ord('m'):
+                # Toggle mask view
+                show_mask = not show_mask
+                if not show_mask and cv2.getWindowProperty("Green Mask", cv2.WND_PROP_VISIBLE) > 0:
+                    cv2.destroyWindow("Green Mask")
                 
         except KeyboardInterrupt:
             print("Keyboard interrupt detected. Exiting...")

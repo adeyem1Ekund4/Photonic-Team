@@ -23,13 +23,22 @@
         "edge_detection": {
             "low_threshold": 50,
             "high_threshold": 150
-        }
+        },
+        "hue_min": 98,
+        "hue_max": 117,
+        "sat_min": 50,
+        "val_min": 50,
+        "qualityLevel": 0.08,
+        "minDistance": 10,
+        "maxCorners": 91,
+        "morphIterations": 1
     },
     "display": {
         "show_fps": true,
         "show_detection_info": true,
         "scale_factor": 1.0,
-        "show_control_panel": true
+        "show_control_panel": true,
+        "show_perspective": false
     },
     "save": {
         "save_detections": false,

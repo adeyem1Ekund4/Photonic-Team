@@ -6,24 +6,14 @@ from typing import Dict
 
 class PerformanceMonitor:
     def __init__(self, history_length=100):
-        """
-        Monitor performance metrics like FPS and frame processing time.
-        
-        Args:
-            history_length (int): Number of frames to keep in history for calculations
-        """
+
         self.frame_times = []
         self.history_length = history_length
         self.start_time = time.time()
         self.total_frames = 0
 
     def update(self, frame_time: float):
-        """
-        Update with a new frame processing time
-        
-        Args:
-            frame_time (float): Time taken to process the frame in seconds
-        """
+
         self.frame_times.append(frame_time)
         self.total_frames += 1
         
@@ -32,12 +22,7 @@ class PerformanceMonitor:
             self.frame_times.pop(0)
 
     def get_fps(self) -> float:
-        """
-        Calculate current frames per second based on recent history
-        
-        Returns:
-            float: Current FPS
-        """
+
         if not self.frame_times:
             return 0.0
         
@@ -48,24 +33,14 @@ class PerformanceMonitor:
         return 0.0
 
     def get_overall_fps(self) -> float:
-        """
-        Calculate overall average FPS since monitoring started
-        
-        Returns:
-            float: Overall average FPS
-        """
+
         elapsed_time = time.time() - self.start_time
         if elapsed_time > 0:
             return self.total_frames / elapsed_time
         return 0.0
 
     def get_stats(self) -> Dict[str, float]:
-        """
-        Get comprehensive performance statistics
-        
-        Returns:
-            Dict: Dictionary of performance metrics
-        """
+
         if not self.frame_times:
             return {
                 "current_fps": 0.0,
@@ -88,12 +63,7 @@ class PerformanceMonitor:
         }
 
     def log_stats(self, interval=60):
-        """
-        Log statistics at specified intervals
-        
-        Args:
-            interval (int): Logging interval in seconds
-        """
+
         elapsed = time.time() - self.start_time
         if elapsed > 0 and int(elapsed) % interval == 0:
             stats = self.get_stats()

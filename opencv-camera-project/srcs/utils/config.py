@@ -4,13 +4,6 @@ import os
 from typing import Dict, Any, Optional
 
 class ConfigManager:
-    """
-    Manages configuration settings for the camera project.
-    
-    This class handles loading, saving, and accessing configuration settings
-    from a JSON file.
-    """
-    
     DEFAULT_CONFIG = {
         "camera": {
             "default_index": 0,

@@ -10,6 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../srcs
 
 from components.camera.camera_handler import CameraHandler
 from utils.image_processing import apply_grayscale, resize_frame
+from utils.green_corner_detection import detect_green_corners, order_points
 
 def main():
     """

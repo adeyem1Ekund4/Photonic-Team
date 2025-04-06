@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'
 
 from components.camera.camera_handler import CameraHandler
 from components.camera.camera_selector import CameraSelector
-from utils.target_detection import detect_targets, TargetTracker, draw_square
+from utils.green_corner_detection import detect_green_corners, order_points
 from utils.image_processing import apply_grayscale, resize_frame
 from utils.config import ConfigManager
 from utils.performance_monitor import PerformanceMonitor
@@ -18,7 +18,7 @@ from components.ui.control_panel import ControlPanel
 
 def main():
     """
-    Main function for camera testing with target detection.
+    Main function for camera testing with green corner detection.
     """
     print("Initializing Camera Tracking Application...")
     
@@ -51,24 +51,22 @@ def main():
         print("Exiting application.")
         return
     
-    # Initialize target tracker with configuration
-    target_tracker = TargetTracker(
-        frame_width=camera.actual_resolution[0],
-        frame_height=camera.actual_resolution[1],
-        history_length=detection_config["history_length"],
-        tolerance=detection_config["square_tolerance"]
-    )
-    
     # Initialize control panel
     control_panel = ControlPanel(config_manager)
     
     print("Camera initialized. Press 'q' to quit.")
     print("Press 'h' to hide/show control panel.")
     print("Press 'r' to reset detection parameters to defaults.")
+    print("Press 'p' to toggle perspective view.")
     print("NOTE: Make sure the camera window is in focus when pressing keys")
     
     # Flag to control the main loop
     running = True
+    show_perspective = display_config.get("show_perspective", False)
+    
+    # List to store recent center positions for trajectory tracking
+    trajectory = []
+    max_trajectory_length = detection_config.get("history_length", 5)
     
     while running:
         try:
@@ -93,56 +91,50 @@ def main():
             # Get current detection configuration (may have been updated by control panel)
             detection_config = config_manager.get_detection_config()
             
-            # Detect dots using the configured method
-            detection_method = detection_config["method"]
-            dots = detect_targets(frame, 
-                                 detection_mode=detection_method, 
-                                 config=detection_config)
+            # Detect green corners using the new method
+            quad, perspective_view = detect_green_corners(frame)
             
-            # Draw detected dots
-            for dot in dots:
-                x, y, area = dot
-                cv2.circle(display_frame, (x, y), 5, (0, 255, 255), -1)
-                cv2.putText(display_frame, f"A:{int(area)}", (x+10, y), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
-            
-            # Display number of dots detected
-            if display_config["show_detection_info"]:
-                cv2.putText(display_frame, f"Dots: {len(dots)} | Method: {detection_method}", 
-                           (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            
-            # Try to find a square arrangement
-            square_dots, square_center = target_tracker.detect_advanced_target(
-                frame, 
-                detection_mode=detection_method,
-                config=detection_config
-            )
-
-            if square_dots:
-                # Draw the detected square
-                display_frame = draw_square(display_frame, square_dots, color=(0, 255, 0), thickness=2)
-
-                # `square_center` now contains the center coordinates
-                if display_config["show_detection_info"]:
-                    cv2.putText(display_frame, "Square Detected!", (square_center[0] - 60, square_center[1]), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-
+            if quad is not None:
+                # Draw points and quadrilateral lines
+                for point in quad:
+                    cv2.circle(display_frame, tuple(map(int, point)), 5, (0, 255, 0), -1)
+                
+                # Order the points and draw the quadrilateral
+                pts = order_points(quad)
+                for i in range(4):
+                    pt1 = tuple(map(int, pts[i]))
+                    pt2 = tuple(map(int, pts[(i+1) % 4]))
+                    cv2.line(display_frame, pt1, pt2, (0, 0, 255), 2)
+                
+                # Calculate the center of the quadrilateral
+                center_x = int(sum(p[0] for p in quad) / 4)
+                center_y = int(sum(p[1] for p in quad) / 4)
+                square_center = (center_x, center_y)
+                
+                # Update trajectory
+                trajectory.append(square_center)
+                if len(trajectory) > max_trajectory_length:
+                    trajectory.pop(0)
+                
                 # Draw a crosshair at the center
                 cv2.drawMarker(display_frame, square_center, (0, 0, 255), cv2.MARKER_CROSS, 20, 2)
+                
+                # Display "Square Detected" text
+                if display_config["show_detection_info"]:
+                    cv2.putText(display_frame, "Square Detected!", 
+                               (square_center[0] - 60, square_center[1]), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                
+                # Optionally show the perspective-corrected view
+                if show_perspective and perspective_view is not None:
+                    cv2.imshow("Perspective View", perspective_view)
             else:
-                # If no square detected, try to show predicted position
-                predicted_center = target_tracker.predict_target_position()
-                if predicted_center:
-                    # Draw predicted position with different color (yellow)
-                    cv2.drawMarker(display_frame, predicted_center, (0, 255, 255), 
-                                cv2.MARKER_CROSS, 20, 2)
-                    if display_config["show_detection_info"]:
-                        cv2.putText(display_frame, "Predicted Position", 
-                                (predicted_center[0] - 80, predicted_center[1] - 20), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                # No quadrilateral detected
+                if display_config["show_detection_info"]:
+                    cv2.putText(display_frame, "No Green Corners Detected", 
+                               (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
             
             # Draw target trajectory
-            trajectory = target_tracker.get_target_trajectory()
             if len(trajectory) > 1:
                 for i in range(1, len(trajectory)):
                     # Draw line with increasing intensity for more recent points
@@ -161,8 +153,8 @@ def main():
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
             # Add quit instructions to the display
-            cv2.putText(display_frame, "Press 'q' to quit | 'h' for panel | 'r' to reset", 
-                       (display_frame.shape[1] - 400, display_frame.shape[0] - 10), 
+            cv2.putText(display_frame, "Press 'q' to quit | 'h' for panel | 'p' for perspective", 
+                       (display_frame.shape[1] - 450, display_frame.shape[0] - 10), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
             
             # Show the display frame
@@ -174,11 +166,16 @@ def main():
             # Update control panel with key press
             control_panel.update(key)
             
-            # Check for q key press (ASCII code 113)
+            # Check for key presses
             if key == ord('q'):
                 print("User requested exit (q key pressed)")
                 running = False
                 break
+            elif key == ord('p'):
+                # Toggle perspective view
+                show_perspective = not show_perspective
+                if not show_perspective and cv2.getWindowProperty("Perspective View", cv2.WND_PROP_VISIBLE) > 0:
+                    cv2.destroyWindow("Perspective View")
                 
         except KeyboardInterrupt:
             print("Keyboard interrupt detected. Exiting...")

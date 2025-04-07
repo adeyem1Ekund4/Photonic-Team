@@ -24,13 +24,13 @@
             "low_threshold": 50,
             "high_threshold": 150
         },
-        "hue_min": 98,
-        "hue_max": 117,
-        "sat_min": 50,
-        "val_min": 50,
-        "qualityLevel": 0.08,
-        "minDistance": 10,
-        "maxCorners": 91,
+        "hue_min": 45,
+        "hue_max": 113,
+        "sat_min": 36,
+        "val_min": 40,
+        "qualityLevel": 0.27,
+        "minDistance": 12,
+        "maxCorners": 30,
         "morphIterations": 1
     },
     "display": {

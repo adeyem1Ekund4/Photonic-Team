@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'
 
 from components.camera.camera_handler import CameraHandler
 from components.camera.camera_selector import CameraSelector
-from utils.green_corner_detection import detect_green_corners, order_points, CornerTracker
+from utils.green_corner_detection import detect_green_corners, order_points, CornerTracker, detect_corners_in_mask
 from utils.image_processing import apply_grayscale, resize_frame
 from utils.config import ConfigManager
 from utils.performance_monitor import PerformanceMonitor
@@ -54,12 +54,22 @@ def main():
     # Initialize corner tracker for temporal smoothing
     corner_tracker = CornerTracker(history_length=detection_config.get("history_length", 5))
     
+    # Add debugging flag
+    debug_mode = False
+    
     print("Camera initialized. Press 'q' to quit.")
     print("Press 'h' to hide/show control panel.")
     print("Press 'r' to reset detection parameters to defaults.")
     print("Press 'p' to toggle perspective view.")
     print("Press 'm' to toggle mask view.")
+    print("Press 'd' to toggle debug mode (helps with parameter tuning).")
     print("NOTE: Make sure the camera window is in focus when pressing keys")
+    print("\nTIPS FOR GREEN MARKER DETECTION:")
+    print("1. Use bright green markers (post-it notes work well)")
+    print("2. Ensure good lighting conditions")
+    print("3. Adjust Hue Min/Max to match your specific shade of green")
+    print("4. Increase Sat Min if detecting too many non-green objects")
+    print("5. Use debug mode ('d' key) to see what's being detected")
     
     # Flag to control the main loop
     running = True
@@ -96,11 +106,49 @@ def main():
             # Detect green corners using the updated method
             quad, perspective_view, mask = detect_green_corners(frame, detection_config)
             
-            # Show mask if enabled
-            if show_mask:
+            # Show mask if enabled or in debug mode
+            if show_mask or debug_mode:
                 cv2.imshow("Green Mask", mask)
             elif cv2.getWindowProperty("Green Mask", cv2.WND_PROP_VISIBLE) > 0:
                 cv2.destroyWindow("Green Mask")
+            
+            # Debug mode visualization
+            if debug_mode:
+                debug_frame = frame.copy()
+                
+                # Get all detected corners before quad selection for debugging
+                all_corners = detect_corners_in_mask(mask, detection_config)
+                
+                # Draw all detected corners
+                for corner in all_corners:
+                    cv2.circle(debug_frame, corner, 3, (0, 255, 255), -1)
+                    
+                # Label the corners with index numbers for easier identification
+                for i, corner in enumerate(all_corners):
+                    cv2.putText(debug_frame, str(i), 
+                               (corner[0] + 5, corner[1] + 5),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+                
+                # Draw the current detection parameters on the debug view
+                param_text = [
+                    f"Hue: {detection_config.get('hue_min', 40)}-{detection_config.get('hue_max', 80)}",
+                    f"Sat Min: {detection_config.get('sat_min', 50)}",
+                    f"Val Min: {detection_config.get('val_min', 50)}",
+                    f"Quality: {detection_config.get('qualityLevel', 0.01):.2f}",
+                    f"Min Dist: {detection_config.get('minDistance', 10)}",
+                    f"Total corners: {len(all_corners)}"
+                ]
+                
+                for i, text in enumerate(param_text):
+                    cv2.putText(debug_frame, text, (10, 30 + i*25),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                
+                # Show the debug view
+                cv2.imshow("Debug View", debug_frame)
+            else:
+                # Close debug windows if they exist
+                if cv2.getWindowProperty("Debug View", cv2.WND_PROP_VISIBLE) > 0:
+                    cv2.destroyWindow("Debug View")
             
             # Update corner tracker with new quad
             if quad is not None:
@@ -167,8 +215,9 @@ def main():
                 cv2.putText(display_frame, f"FPS: {fps:.1f}", (10, display_frame.shape[0] - 10), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
-            # Add quit instructions to the display
-            cv2.putText(display_frame, "Press 'q' to quit | 'h' for panel | 'p' for perspective | 'm' for mask", 
+            # Add instruction text to the display
+            instructions = "Press 'q' to quit | 'h' for panel | 'p' for perspective | 'm' for mask | 'd' for debug"
+            cv2.putText(display_frame, instructions, 
                        (10, display_frame.shape[0] - 40), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
             
@@ -196,6 +245,17 @@ def main():
                 show_mask = not show_mask
                 if not show_mask and cv2.getWindowProperty("Green Mask", cv2.WND_PROP_VISIBLE) > 0:
                     cv2.destroyWindow("Green Mask")
+            elif key == ord('d'):
+                # Toggle debug mode
+                debug_mode = not debug_mode
+                print(f"Debug mode {'enabled' if debug_mode else 'disabled'}")
+                
+                # Close debug windows when disabling debug mode
+                if not debug_mode:
+                    if cv2.getWindowProperty("Debug View", cv2.WND_PROP_VISIBLE) > 0:
+                        cv2.destroyWindow("Debug View")
+                    if not show_mask and cv2.getWindowProperty("Green Mask", cv2.WND_PROP_VISIBLE) > 0:
+                        cv2.destroyWindow("Green Mask")
                 
         except KeyboardInterrupt:
             print("Keyboard interrupt detected. Exiting...")
@@ -203,6 +263,8 @@ def main():
             break
         except Exception as e:
             print(f"Unexpected error: {str(e)}")
+            import traceback
+            traceback.print_exc()  # Print the full stack trace for debugging
             time.sleep(1)
     
     # Cleanup

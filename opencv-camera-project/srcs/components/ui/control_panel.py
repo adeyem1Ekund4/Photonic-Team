@@ -63,52 +63,86 @@ class ControlPanel:
         self._update_panel_image()
     
     def _on_hue_min_change(self, value):
-        detection_config = self.config_manager.get_detection_config()
-        detection_config["hue_min"] = value
-        self.config_manager.update_section("detection", detection_config)
-        self._update_panel_image()
+        try:
+            detection_config = self.config_manager.get_detection_config()
+            
+            hue_max = detection_config.get("hue_max", 80)
+            value = min(value, hue_max)
+            detection_config["hue_min"] = value
+            self.config_manager.update_section("detection", detection_config)
+
+            cv2.setTrackbarPos("Hue Min", self.window_name, value)
+            self._update_panel_image()
+        except Exception as e:
+            print(f"Error in hue_min change: {e}")
 
     def _on_hue_max_change(self, value):
-        detection_config = self.config_manager.get_detection_config()
-        detection_config["hue_max"] = value
-        self.config_manager.update_section("detection", detection_config)
-        self._update_panel_image()
+        try:
+            detection_config = self.config_manager.get_detection_config()
+            
+            hue_min = detection_config.get("hue_min", 40)
+            value = max(value, hue_min)
+            detection_config["hue_max"] = value
+            self.config_manager.update_section("detection", detection_config)
+            
+            cv2.setTrackbarPos("Hue Max", self.window_name, value)
+            self._update_panel_image()
+        except Exception as e:
+            print(f"Error in hue_max change: {e}")
 
     def _on_sat_min_change(self, value):
-        detection_config = self.config_manager.get_detection_config()
-        detection_config["sat_min"] = value
-        self.config_manager.update_section("detection", detection_config)
-        self._update_panel_image()
+        try:
+            detection_config = self.config_manager.get_detection_config()
+            detection_config["sat_min"] = value
+            self.config_manager.update_section("detection", detection_config)
+            self._update_panel_image()
+        except Exception as e:
+            print(f"Error in sat_min change: {e}")
 
     def _on_val_min_change(self, value):
-        detection_config = self.config_manager.get_detection_config()
-        detection_config["val_min"] = value
-        self.config_manager.update_section("detection", detection_config)
-        self._update_panel_image()
+        try:
+            detection_config = self.config_manager.get_detection_config()
+            detection_config["val_min"] = value
+            self.config_manager.update_section("detection", detection_config)
+            self._update_panel_image()
+        except Exception as e:
+            print(f"Error in val_min change: {e}")
 
     def _on_quality_level_change(self, value):
-        detection_config = self.config_manager.get_detection_config()
-        detection_config["qualityLevel"] = value / 100.0
-        self.config_manager.update_section("detection", detection_config)
-        self._update_panel_image()
+        try:
+            detection_config = self.config_manager.get_detection_config()
+            detection_config["qualityLevel"] = value / 100.0
+            self.config_manager.update_section("detection", detection_config)
+            self._update_panel_image()
+        except Exception as e:
+            print(f"Error in quality_level change: {e}")
 
     def _on_min_distance_change(self, value):
-        detection_config = self.config_manager.get_detection_config()
-        detection_config["minDistance"] = value
-        self.config_manager.update_section("detection", detection_config)
-        self._update_panel_image()
+        try:
+            detection_config = self.config_manager.get_detection_config()
+            detection_config["minDistance"] = value
+            self.config_manager.update_section("detection", detection_config)
+            self._update_panel_image()
+        except Exception as e:
+            print(f"Error in min_distance change: {e}")
 
     def _on_max_corners_change(self, value):
-        detection_config = self.config_manager.get_detection_config()
-        detection_config["maxCorners"] = value
-        self.config_manager.update_section("detection", detection_config)
-        self._update_panel_image()
+        try:
+            detection_config = self.config_manager.get_detection_config()
+            detection_config["maxCorners"] = value
+            self.config_manager.update_section("detection", detection_config)
+            self._update_panel_image()
+        except Exception as e:
+            print(f"Error in max_corners change: {e}")
 
     def _on_morph_iterations_change(self, value):
-        detection_config = self.config_manager.get_detection_config()
-        detection_config["morphIterations"] = value
-        self.config_manager.update_section("detection", detection_config)
-        self._update_panel_image()
+        try:
+            detection_config = self.config_manager.get_detection_config()
+            detection_config["morphIterations"] = value
+            self.config_manager.update_section("detection", detection_config)
+            self._update_panel_image()
+        except Exception as e:
+            print(f"Error in morph_iterations change: {e}")
     
     def _update_panel_image(self):
         """Update the panel image with current settings."""
@@ -123,62 +157,76 @@ class ControlPanel:
         
         # Add title
         cv2.putText(self.panel_image, "Green Corner Detection Settings", 
-                   (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 100, 0), 2)
+                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 100, 0), 2)
         
-        # Add current values
+        # Add current values with descriptions
         y_pos = 70
         line_height = 30
         
         # HSV Range
         cv2.putText(self.panel_image, f"Hue Range: {detection_config.get('hue_min', 40)}-{detection_config.get('hue_max', 80)}", 
-                   (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        y_pos += line_height
+                (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
+        cv2.putText(self.panel_image, "(Adjust to match your green markers)", 
+                (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
+        y_pos += line_height + 20
         
         cv2.putText(self.panel_image, f"Sat Min: {detection_config.get('sat_min', 50)}", 
-                   (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        y_pos += line_height
+                (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
+        cv2.putText(self.panel_image, "(Higher values filter out whitish colors)", 
+                (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
+        y_pos += line_height + 20
         
         cv2.putText(self.panel_image, f"Val Min: {detection_config.get('val_min', 50)}", 
-                   (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        y_pos += line_height
+                (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
+        cv2.putText(self.panel_image, "(Higher values filter out dark areas)", 
+                (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
+        y_pos += line_height + 20
         
         # Corner Detection
         cv2.putText(self.panel_image, f"Quality Level: {detection_config.get('qualityLevel', 0.01):.2f}", 
-                   (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        y_pos += line_height
+                (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
+        cv2.putText(self.panel_image, "(Lower values detect more corners)", 
+                (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
+        y_pos += line_height + 20
         
         cv2.putText(self.panel_image, f"Min Distance: {detection_config.get('minDistance', 10)}", 
-                   (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        y_pos += line_height
+                (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
+        cv2.putText(self.panel_image, "(Minimum pixel distance between corners)", 
+                (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
+        y_pos += line_height + 20
         
         cv2.putText(self.panel_image, f"Max Corners: {detection_config.get('maxCorners', 100)}", 
-                   (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        y_pos += line_height
+                (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
+        cv2.putText(self.panel_image, "(Maximum corners to detect)", 
+                (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
+        y_pos += line_height + 20
         
         cv2.putText(self.panel_image, f"Morph Iterations: {detection_config.get('morphIterations', 1)}", 
-                   (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
+                (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
+        cv2.putText(self.panel_image, "(Higher values clean noise but blur edges)", 
+                (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
         y_pos += line_height * 2
         
         # Instructions
         cv2.putText(self.panel_image, "Instructions:", 
-                   (10, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+                (10, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
         y_pos += line_height
         
         instructions = [
             "- Adjust Hue to match your green markers",
-            "- Increase Quality Level for stronger corners",
+            "- Increase Sat Min to filter out white/gray",
+            "- Adjust Val Min to filter out dark areas",
+            "- Lower Quality Level to detect more corners",
             "- Increase Min Distance to separate corners",
-            "- Adjust Morph Iterations for noise removal",
-            "- Press 'h' to hide/show this panel",
+            "- Press 'd' to toggle debug view",
             "- Press 'r' to reset to defaults",
-            "- Press 'p' to toggle perspective view",
-            "- Press 'm' to toggle mask view"
+            "- Press 'h' to hide this panel"
         ]
         
         for instruction in instructions:
             cv2.putText(self.panel_image, instruction, 
-                       (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (50, 50, 50), 1)
-            y_pos += line_height
+                    (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (50, 50, 50), 1)
+            y_pos += line_height - 5  # Slightly reduced spacing for instructions
         
         # Display the panel image
         cv2.imshow(self.window_name, self.panel_image)

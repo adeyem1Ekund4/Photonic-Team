@@ -9,14 +9,14 @@ def detect_green_regions_hsv(frame, config=None):
     if config is None:
         config = {}
     
-    # Get parameters from config or use defaults
-    hue_min = config.get("hue_min", 40)
-    hue_max = config.get("hue_max", 80)
-    sat_min = config.get("sat_min", 50)
-    val_min = config.get("val_min", 50)
-    morph_iterations = config.get("morphIterations", 1)
+    # Get parameters from config with clear defaults
+    hue_min = config.get("hue_min", 40)  # Default green hue starts around 40
+    hue_max = config.get("hue_max", 80)  # Default green hue ends around 80
+    sat_min = config.get("sat_min", 50)  # Minimum saturation to filter out whitish colors
+    val_min = config.get("val_min", 50)  # Minimum brightness to filter out dark areas
+    morph_iterations = config.get("morphIterations", 1)  # Noise removal iterations
     
-    # Create HSV range
+    # Create HSV range for green detection
     lower_green = np.array([hue_min, sat_min, val_min])
     upper_green = np.array([hue_max, 255, 255])
     
@@ -24,7 +24,7 @@ def detect_green_regions_hsv(frame, config=None):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, lower_green, upper_green)
     
-    # Apply morphological operations
+    # Apply morphological operations to clean up the mask
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=morph_iterations)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=morph_iterations)
@@ -35,11 +35,10 @@ def detect_corners_in_mask(mask, config=None):
     """Detect corners in the mask with configurable parameters."""
     if config is None:
         config = {}
-    
-    # Get parameters from config or use defaults
-    max_corners = config.get("maxCorners", 100)
-    quality_level = config.get("qualityLevel", 0.01)
-    min_distance = config.get("minDistance", 10)
+
+    max_corners = config.get("maxCorners", 100)  # Maximum number of corners to detect
+    quality_level = config.get("qualityLevel", 0.01)  # Corner quality threshold (0-1)
+    min_distance = config.get("minDistance", 10)  # Minimum distance between corners
     
     corners = cv2.goodFeaturesToTrack(mask, maxCorners=max_corners, 
                                      qualityLevel=quality_level, 
@@ -52,14 +51,13 @@ def detect_corners_in_mask(mask, config=None):
 def rank_and_select_quad(corners):
     if len(corners) < 4:
         return None
-
     best_quad = None
     max_area = 0
     for quad in combinations(corners, 4):
-        pts = np.array(quad, dtype=np.float32)
-        hull = cv2.convexHull(pts)
-        if len(hull) == 4:
-            area = cv2.contourArea(hull)
+        pts = np.array(quad, dtype=np.float32)     
+        hull = cv2.convexHull(pts)             
+        if len(hull) == 4:       
+            area = cv2.contourArea(hull)        
             if area > max_area:
                 max_area = area
                 best_quad = quad

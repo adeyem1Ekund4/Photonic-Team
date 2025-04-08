@@ -24,14 +24,14 @@
             "low_threshold": 50,
             "high_threshold": 150
         },
-        "hue_min": 45,
-        "hue_max": 113,
-        "sat_min": 36,
-        "val_min": 40,
-        "qualityLevel": 0.27,
-        "minDistance": 12,
-        "maxCorners": 30,
-        "morphIterations": 1
+        "hue_min": 51,
+        "hue_max": 112,
+        "sat_min": 7,
+        "val_min": 70,
+        "qualityLevel": 0.58,
+        "minDistance": 13,
+        "maxCorners": 7,
+        "morphIterations": 2
     },
     "display": {
         "show_fps": true,

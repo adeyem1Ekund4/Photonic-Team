@@ -56,13 +56,15 @@ def main():
     
     # Add debugging flag
     debug_mode = False
-    
+    auto_green_mode = False
+
     print("Camera initialized. Press 'q' to quit.")
     print("Press 'h' to hide/show control panel.")
     print("Press 'r' to reset detection parameters to defaults.")
     print("Press 'p' to toggle perspective view.")
     print("Press 'm' to toggle mask view.")
     print("Press 'd' to toggle debug mode (helps with parameter tuning).")
+    print("Press 'a' to toggle auto green detection mode.")
     print("NOTE: Make sure the camera window is in focus when pressing keys")
     print("\nTIPS FOR GREEN MARKER DETECTION:")
     print("1. Use bright green markers (post-it notes work well)")
@@ -102,9 +104,29 @@ def main():
             
             # Get current detection configuration (may have been updated by control panel)
             detection_config = config_manager.get_detection_config()
-            
+
+            # If auto green mode is active, automatically determine HSV values
+            if auto_green_mode:
+                # Auto-determine HSV values for green detection
+                auto_hsv_values = auto_detect_green_hsv(frame)
+                if auto_hsv_values:
+                    # Update detection/auto-determined values
+                    detection_config.update(auto_hsv_values)
+                    # Update trackbars/visible
+                    if control_panel.is_visible:
+                        control_panel.update_trackbars_from_config(detection_config)
+
             # Detect green corners using the updated method
-            quad, perspective_view, mask = detect_green_corners(frame, detection_config)
+            try:
+                quad, perspective_view, mask = detect_green_corners(frame, detection_config)
+            except Exception as e:
+                print(f"Error in green corner detection: {e}")
+                # Reset to default detection parameters if an error occurs
+                detection_config = config_manager.DEFAULT_CONFIG["detection"]
+                config_manager.update_section("detection", detection_config)
+                control_panel.update_trackbars_from_config(detection_config)
+                # Skip this frame
+                continue
             
             # Show mask if enabled or in debug mode
             if show_mask or debug_mode:
@@ -150,6 +172,10 @@ def main():
                 if cv2.getWindowProperty("Debug View", cv2.WND_PROP_VISIBLE) > 0:
                     cv2.destroyWindow("Debug View")
             
+            if auto_green_mode:
+                cv2.putText(display_frame, "AUTO GREEN MODE", 
+                           (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
             # Update corner tracker with new quad
             if quad is not None:
                 corner_tracker.update(quad)
@@ -215,7 +241,6 @@ def main():
                 cv2.putText(display_frame, f"FPS: {fps:.1f}", (10, display_frame.shape[0] - 10), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
-            # Add instruction text to the display
             instructions = "Press 'q' to quit | 'h' for panel | 'p' for perspective | 'm' for mask | 'd' for debug"
             cv2.putText(display_frame, instructions, 
                        (10, display_frame.shape[0] - 40), 
@@ -236,21 +261,19 @@ def main():
                 running = False
                 break
             elif key == ord('p'):
-                # Toggle perspective view
                 show_perspective = not show_perspective
                 if not show_perspective and cv2.getWindowProperty("Perspective View", cv2.WND_PROP_VISIBLE) > 0:
                     cv2.destroyWindow("Perspective View")
             elif key == ord('m'):
-                # Toggle mask view
                 show_mask = not show_mask
                 if not show_mask and cv2.getWindowProperty("Green Mask", cv2.WND_PROP_VISIBLE) > 0:
                     cv2.destroyWindow("Green Mask")
+            elif key == ord('a'):
+                auto_green_mode = not auto_green_mode
+                print(f"Auto green detection mode {'enabled' if auto_green_mode else 'disabled'}")
             elif key == ord('d'):
-                # Toggle debug mode
                 debug_mode = not debug_mode
                 print(f"Debug mode {'enabled' if debug_mode else 'disabled'}")
-                
-                # Close debug windows when disabling debug mode
                 if not debug_mode:
                     if cv2.getWindowProperty("Debug View", cv2.WND_PROP_VISIBLE) > 0:
                         cv2.destroyWindow("Debug View")

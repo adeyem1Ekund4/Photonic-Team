@@ -102,7 +102,8 @@ class ControlPanel:
     def _on_val_min_change(self, value):
         try:
             detection_config = self.config_manager.get_detection_config()
-            detection_config["val_min"] = value
+            # Ensure value min is at least 1
+            detection_config["val_min"] = max(1, value)
             self.config_manager.update_section("detection", detection_config)
             self._update_panel_image()
         except Exception as e:
@@ -111,7 +112,9 @@ class ControlPanel:
     def _on_quality_level_change(self, value):
         try:
             detection_config = self.config_manager.get_detection_config()
-            detection_config["qualityLevel"] = value / 100.0
+            # Ensure quality level is never zero - minimum value of 0.01
+            quality_level = max(0.01, value / 100.0)
+            detection_config["qualityLevel"] = quality_level
             self.config_manager.update_section("detection", detection_config)
             self._update_panel_image()
         except Exception as e:
@@ -144,8 +147,35 @@ class ControlPanel:
         except Exception as e:
             print(f"Error in morph_iterations change: {e}")
     
+    def update_trackbars_from_config(self, config):
+        if not self.is_visible:
+            return      
+        try:
+            # Update HSV trackbars with validation
+            cv2.setTrackbarPos("Hue Min", self.window_name, max(0, min(179, config.get("hue_min", 40))))
+            cv2.setTrackbarPos("Hue Max", self.window_name, max(0, min(179, config.get("hue_max", 80))))
+            cv2.setTrackbarPos("Sat Min", self.window_name, max(1, min(255, config.get("sat_min", 50))))
+            cv2.setTrackbarPos("Val Min", self.window_name, max(1, min(255, config.get("val_min", 50))))
+            
+            # Update other trackbars with validation
+            quality_level = int(max(0.01, min(1.0, config.get("qualityLevel", 0.01))) * 100)
+            cv2.setTrackbarPos("Quality Level (x100)", self.window_name, quality_level)
+            cv2.setTrackbarPos("Min Distance", self.window_name, max(1, min(100, config.get("minDistance", 10))))
+            cv2.setTrackbarPos("Max Corners", self.window_name, max(4, min(200, config.get("maxCorners", 100))))
+            cv2.setTrackbarPos("Morph Iterations", self.window_name, max(0, min(5, config.get("morphIterations", 1))))
+            
+            # Update the panel image
+            self._update_panel_image()
+        except Exception as e:
+            print(f"Error updating trackbars: {e}")
+            # If updating trackbars fails, try to reset to defaults
+            self.reset_to_defaults()
+
+    def set_auto_mode(self, enabled):
+        self.auto_green_mode = enabled
+        self._update_panel_image()
+
     def _update_panel_image(self):
-        """Update the panel image with current settings."""
         if not self.is_visible:
             return
             
@@ -158,8 +188,11 @@ class ControlPanel:
         # Add title
         cv2.putText(self.panel_image, "Green Corner Detection Settings", 
                 (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 100, 0), 2)
-        
-        # Add current values with descriptions
+
+        if hasattr(self, 'auto_green_mode') and self.auto_green_mode:
+            cv2.putText(self.panel_image, "AUTO MODE ACTIVE", 
+                    (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
         y_pos = 70
         line_height = 30
         
@@ -278,6 +311,30 @@ class ControlPanel:
             cv2.setTrackbarPos("Morph Iterations", self.window_name, detection_config["morphIterations"])
             
             self._update_panel_image()
+
+    def reset_to_defaults(self):
+        detection_config = {
+            "hue_min": 40,
+            "hue_max": 80,
+            "sat_min": 50,
+            "val_min": 50,
+            "qualityLevel": 0.01,
+            "minDistance": 10,
+            "maxCorners": 100,
+            "morphIterations": 1,
+            # Preserve other settings not related to green corner detection
+            "method": self.config_manager.get_detection_config().get("method", "hybrid"),
+            "min_area": self.config_manager.get_detection_config().get("min_area", 5),
+            "max_area": self.config_manager.get_detection_config().get("max_area", 500),
+            "threshold_value": self.config_manager.get_detection_config().get("threshold_value", 245),
+            "square_tolerance": self.config_manager.get_detection_config().get("square_tolerance", 0.2),
+            "history_length": self.config_manager.get_detection_config().get("history_length", 5)
+        }
+        
+        self.config_manager.update_section("detection", detection_config)
+        
+        # Update trackbars to match defaults
+        self.update_trackbars_from_config(detection_config)
     
     def close(self):
         """Close the control panel window."""

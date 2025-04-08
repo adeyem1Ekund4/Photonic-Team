@@ -52,22 +52,12 @@ class ConfigManager:
     }
     
     def __init__(self, config_path: str = "config.json"):
-        """
-        Initialize the configuration manager.
-        
-        Args:
-            config_path: Path to the configuration file
-        """
         self.config_path = config_path
         self.config = self._load_config()
+        # Validate config values to prevent crashes
+        self.validate_config()
         
     def _load_config(self) -> Dict[str, Any]:
-        """
-        Load configuration from file or create default if not exists.
-        
-        Returns:
-            Dictionary containing configuration settings
-        """
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, 'r') as f:
@@ -84,15 +74,6 @@ class ConfigManager:
             return self.DEFAULT_CONFIG.copy()
             
     def _merge_with_defaults(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Merge loaded config with defaults to ensure all keys exist.
-        
-        Args:
-            config: Loaded configuration dictionary
-            
-        Returns:
-            Merged configuration dictionary
-        """
         result = self.DEFAULT_CONFIG.copy()
         
         for section, values in config.items():
@@ -111,15 +92,6 @@ class ConfigManager:
         return result
     
     def save_config(self, config: Optional[Dict[str, Any]] = None) -> bool:
-        """
-        Save configuration to file.
-        
-        Args:
-            config: Configuration to save (uses current config if None)
-            
-        Returns:
-            True if successful, False otherwise
-        """
         if config is None:
             config = self.config
             
@@ -165,3 +137,24 @@ class ConfigManager:
             self.config[section][key] = value
             
         return self.save_config()
+    def validate_config(self):
+        # Validate detection config
+        detection = self.get_detection_config()
+        
+        # HSV parameters
+        detection["hue_min"] = max(0, min(179, detection.get("hue_min", 40)))
+        detection["hue_max"] = max(0, min(179, detection.get("hue_max", 80)))
+        detection["sat_min"] = max(1, min(255, detection.get("sat_min", 50)))
+        detection["val_min"] = max(1, min(255, detection.get("val_min", 50)))
+        
+        # Corner detection parameters
+        detection["qualityLevel"] = max(0.01, min(1.0, detection.get("qualityLevel", 0.01)))
+        detection["minDistance"] = max(1, min(100, detection.get("minDistance", 10)))
+        detection["maxCorners"] = max(4, min(1000, detection.get("maxCorners", 100)))
+        detection["morphIterations"] = max(0, min(10, detection.get("morphIterations", 1)))
+        
+        # Update the detection section
+        self.update_section("detection", detection)
+        
+        # Return the validated config
+        return self.config

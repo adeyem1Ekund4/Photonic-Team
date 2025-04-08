@@ -5,16 +5,15 @@ from itertools import combinations
 
 
 def detect_green_regions_hsv(frame, config=None):
-    """Detect green regions using HSV color space with configurable parameters."""
     if config is None:
         config = {}
     
-    # Get parameters from config with clear defaults
-    hue_min = config.get("hue_min", 40)  # Default green hue starts around 40
-    hue_max = config.get("hue_max", 80)  # Default green hue ends around 80
-    sat_min = config.get("sat_min", 50)  # Minimum saturation to filter out whitish colors
-    val_min = config.get("val_min", 50)  # Minimum brightness to filter out dark areas
-    morph_iterations = config.get("morphIterations", 1)  # Noise removal iterations
+    # Get parameters from config with clear defaults and validation
+    hue_min = max(0, min(179, config.get("hue_min", 40)))
+    hue_max = max(0, min(179, config.get("hue_max", 80)))
+    sat_min = max(1, min(255, config.get("sat_min", 50)))
+    val_min = max(1, min(255, config.get("val_min", 50)))
+    morph_iterations = max(0, min(10, config.get("morphIterations", 1)))
     
     # Create HSV range for green detection
     lower_green = np.array([hue_min, sat_min, val_min])
@@ -36,9 +35,9 @@ def detect_corners_in_mask(mask, config=None):
     if config is None:
         config = {}
 
-    max_corners = config.get("maxCorners", 100)  # Maximum number of corners to detect
-    quality_level = config.get("qualityLevel", 0.01)  # Corner quality threshold (0-1)
-    min_distance = config.get("minDistance", 10)  # Minimum distance between corners
+    max_corners = max(4, min(1000, config.get("maxCorners", 100)))
+    quality_level = max(0.01, min(1.0, config.get("qualityLevel", 0.01)))
+    min_distance = max(1, min(100, config.get("minDistance", 10)))
     
     corners = cv2.goodFeaturesToTrack(mask, maxCorners=max_corners, 
                                      qualityLevel=quality_level, 
@@ -103,6 +102,68 @@ def perspective_transform(frame, quad):
     warped = cv2.warpPerspective(frame, M, (maxWidth, maxHeight))
     return warped
 
+def auto_detect_green_hsv(frame, sample_regions=5):
+    # Convert to HSV for color analysis
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    
+    # Define a broad green range to start with
+    lower_green = np.array([35, 30, 30])
+    upper_green = np.array([85, 255, 255])
+    
+    # Create a mask for the broad green range
+    broad_mask = cv2.inRange(hsv, lower_green, upper_green)
+    
+    # Find contours in the broad mask
+    contours, _ = cv2.findContours(broad_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Sort contours by area (largest first)
+    contours = sorted(contours, key=cv2.contourArea, reverse=True)
+    
+    # If no significant green regions found
+    if not contours or cv2.contourArea(contours[0]) < 100:
+        return None
+    
+    # Sample HSV values from the largest green regions
+    hue_values = []
+    sat_values = []
+    val_values = []
+    
+    for i in range(min(sample_regions, len(contours))):
+        if cv2.contourArea(contours[i]) < 50:  # Skip very small contours
+            continue
+            
+        # Create a mask for this contour
+        contour_mask = np.zeros_like(broad_mask)
+        cv2.drawContours(contour_mask, [contours[i]], 0, 255, -1)
+        
+        # Get the average HSV values within this contour
+        mean_hsv = cv2.mean(hsv, mask=contour_mask)
+        
+        hue_values.append(mean_hsv[0])
+        sat_values.append(mean_hsv[1])
+        val_values.append(mean_hsv[2])
+    
+    if not hue_values:  # If no suitable contours were found
+        return None
+    
+    # Calculate optimal HSV ranges based on samples
+    # For hue, we want a range around the mean
+    mean_hue = np.mean(hue_values)
+    hue_std = max(5.0, np.std(hue_values))  # Minimum std of 5 to ensure some range
+    
+    # For saturation and value, we want minimums that capture the green objects
+    mean_sat = np.mean(sat_values)
+    mean_val = np.mean(val_values)
+    
+    # Create the HSV config with some margins
+    hsv_config = {
+        "hue_min": max(0, int(mean_hue - hue_std * 1.5)),
+        "hue_max": min(179, int(mean_hue + hue_std * 1.5)),
+        "sat_min": max(10, int(mean_sat * 0.7)),  # 70% of mean saturation as minimum
+        "val_min": max(10, int(mean_val * 0.7))   # 70% of mean value as minimum
+    }   
+    return hsv_config
+
 class CornerTracker:
     def __init__(self, history_length=5):
         self.corner_history = []
@@ -126,8 +187,7 @@ class CornerTracker:
             count = sum(1 for history in self.corner_history if len(history) > i)
             
             if count > 0:
-                smoothed.append((x_sum/count, y_sum/count))
-                
+                smoothed.append((x_sum/count, y_sum/count))               
         return smoothed if len(smoothed) == 4 else None
 
 def detect_green_corners(frame, config=None):

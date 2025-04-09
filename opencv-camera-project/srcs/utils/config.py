@@ -18,6 +18,7 @@ class ConfigManager:
             "method": "hybrid",  # "brightness", "contour", "hybrid"
             "min_area": 5,
             "max_area": 500,
+            "square_tolerance": 0.3,
             "threshold_value": 245,
             "square_tolerance": 0.2,
             "history_length": 5,

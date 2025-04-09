@@ -58,6 +58,10 @@ class ControlPanel:
                           detection_config.get("morphIterations", 1), 5, 
                           self._on_morph_iterations_change)
         
+        cv2.createTrackbar("Square Tolerance (x100)", self.window_name, 
+                          int(detection_config.get("square_tolerance", 0.3) * 100), 100, 
+                          self._on_square_tolerance_change)
+        
         # Create a background image for the panel
         self.panel_image = np.ones((self.panel_height, self.panel_width, 3), dtype=np.uint8) * 240
         self._update_panel_image()
@@ -146,6 +150,16 @@ class ControlPanel:
             self._update_panel_image()
         except Exception as e:
             print(f"Error in morph_iterations change: {e}")
+
+    def _on_square_tolerance_change(self, value):
+        try:
+            detection_config = self.config_manager.get_detection_config()
+            # Convert from 0-100 range to 0.0-1.0 range
+            detection_config["square_tolerance"] = value / 100.0
+            self.config_manager.update_section("detection", detection_config)
+            self._update_panel_image()
+        except Exception as e:
+            print(f"Error in square_tolerance change: {e}")
     
     def update_trackbars_from_config(self, config):
         if not self.is_visible:
@@ -239,6 +253,13 @@ class ControlPanel:
         cv2.putText(self.panel_image, "(Higher values clean noise but blur edges)", 
                 (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
         y_pos += line_height * 2
+
+         # Add square tolerance to the panel text
+        cv2.putText(self.panel_image, f"Square Tolerance: {detection_config.get('square_tolerance', 0.3):.2f}", 
+                (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
+        cv2.putText(self.panel_image, "(Higher values allow more distorted squares)", 
+                (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
+        y_pos += line_height + 20
         
         # Instructions
         cv2.putText(self.panel_image, "Instructions:", 
@@ -322,6 +343,7 @@ class ControlPanel:
             "minDistance": 10,
             "maxCorners": 100,
             "morphIterations": 1,
+            "square_tolerance": 0.3, 
             # Preserve other settings not related to green corner detection
             "method": self.config_manager.get_detection_config().get("method", "hybrid"),
             "min_area": self.config_manager.get_detection_config().get("min_area", 5),

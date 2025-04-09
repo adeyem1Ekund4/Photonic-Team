@@ -34,33 +34,72 @@ def detect_corners_in_mask(mask, config=None):
     """Detect corners in the mask with configurable parameters."""
     if config is None:
         config = {}
+    # Find contours in the mask first
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)    
+    # Filter contours by area to remove noise
+    min_area = config.get("min_area", 5)
+    max_area = config.get("max_area", 500)
+    valid_contours = [c for c in contours if min_area <= cv2.contourArea(c) <= max_area]   
+    # Find exactly one point per contour (centroid)
+    corners = []
+    for contour in valid_contours:
+        M = cv2.moments(contour)
+        if M["m00"] > 0:  # Avoid division by zero
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+            corners.append((cX, cY))    
+    return corners
 
-    max_corners = max(4, min(1000, config.get("maxCorners", 100)))
-    quality_level = max(0.01, min(1.0, config.get("qualityLevel", 0.01)))
-    min_distance = max(1, min(100, config.get("minDistance", 10)))
-    
-    corners = cv2.goodFeaturesToTrack(mask, maxCorners=max_corners, 
-                                     qualityLevel=quality_level, 
-                                     minDistance=min_distance)
-    if corners is not None:
-        corners = np.int0(corners)
-        return [tuple(c.ravel()) for c in corners]
-    return []
-
-def rank_and_select_quad(corners):
+def rank_and_select_quad(corners, config=None):
+    if config is None:
+        config = {}
+        
     if len(corners) < 4:
         return None
+    
     best_quad = None
     max_area = 0
+    
+    # Try all combinations of 4 corners
     for quad in combinations(corners, 4):
-        pts = np.array(quad, dtype=np.float32)     
-        hull = cv2.convexHull(pts)             
-        if len(hull) == 4:       
-            area = cv2.contourArea(hull)        
-            if area > max_area:
-                max_area = area
-                best_quad = quad
+        pts = np.array(quad, dtype=np.float32)
+        
+        # Check if these points form a convex quadrilateral
+        hull = cv2.convexHull(pts)
+        if len(hull) == 4:  # It's a quadrilateral
+            # Calculate area
+            area = cv2.contourArea(hull)
+            
+            # Check if it's roughly square-like
+            tolerance = config.get("square_tolerance", 0.3)
+            if is_square_like(quad, tolerance=tolerance):
+                if area > max_area:
+                    max_area = area
+                    best_quad = quad
+    
     return best_quad
+
+def is_square_like(quad, tolerance=0.3):
+    # Calculate all pairwise distances
+    pts = np.array(quad)
+    dists = []
+    for i in range(4):
+        for j in range(i+1, 4):
+            dist = np.linalg.norm(pts[i] - pts[j])
+            dists.append(dist)    
+    # Sort distances - in a square, 4 should be sides and 2 should be diagonals
+    dists.sort()
+    sides = dists[:4]
+    diagonals = dists[4:]    
+    # Check if sides are roughly equal
+    avg_side = sum(sides) / 4
+    side_deviation = max(abs(s - avg_side) for s in sides) / avg_side    
+    # Check if diagonals are roughly equal
+    if len(diagonals) == 2:
+        diag_deviation = abs(diagonals[0] - diagonals[1]) / max(diagonals)
+    else:
+        diag_deviation = 1.0  # Not a quadrilateral    
+    return side_deviation < tolerance and diag_deviation < tolerance
 
 def order_points(pts):
     pts = np.array(pts, dtype="float32")
@@ -103,66 +142,77 @@ def perspective_transform(frame, quad):
     return warped
 
 def auto_detect_green_hsv(frame, sample_regions=5):
-    # Convert to HSV for color analysis
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    
-    # Define a broad green range to start with
-    lower_green = np.array([35, 30, 30])
-    upper_green = np.array([85, 255, 255])
-    
-    # Create a mask for the broad green range
-    broad_mask = cv2.inRange(hsv, lower_green, upper_green)
-    
-    # Find contours in the broad mask
-    contours, _ = cv2.findContours(broad_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # Sort contours by area (largest first)
-    contours = sorted(contours, key=cv2.contourArea, reverse=True)
-    
-    # If no significant green regions found
-    if not contours or cv2.contourArea(contours[0]) < 100:
-        return None
-    
-    # Sample HSV values from the largest green regions
-    hue_values = []
-    sat_values = []
-    val_values = []
-    
-    for i in range(min(sample_regions, len(contours))):
-        if cv2.contourArea(contours[i]) < 50:  # Skip very small contours
-            continue
+    """Auto-detect HSV values for green markers with better error handling."""
+    try:
+        # Convert to HSV for color analysis
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        
+        # Define a broad green range to start with
+        lower_green = np.array([35, 30, 30])
+        upper_green = np.array([85, 255, 255])
+        
+        # Create a mask for the broad green range
+        broad_mask = cv2.inRange(hsv, lower_green, upper_green)
+        
+        # Find contours in the broad mask
+        contours, _ = cv2.findContours(broad_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        # Sort contours by area (largest first)
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)
+        
+        # If no significant green regions found
+        if not contours or cv2.contourArea(contours[0]) < 100:
+            return None
+        
+        # Sample HSV values from the largest green regions
+        hue_values = []
+        sat_values = []
+        val_values = []
+        
+        for i in range(min(sample_regions, len(contours))):
+            if cv2.contourArea(contours[i]) < 50:  # Skip very small contours
+                continue
+                
+            # Create a mask for this contour
+            contour_mask = np.zeros_like(broad_mask)
+            cv2.drawContours(contour_mask, [contours[i]], 0, 255, -1)
             
-        # Create a mask for this contour
-        contour_mask = np.zeros_like(broad_mask)
-        cv2.drawContours(contour_mask, [contours[i]], 0, 255, -1)
+            # Get the average HSV values within this contour
+            mean_hsv = cv2.mean(hsv, mask=contour_mask)
+            
+            hue_values.append(mean_hsv[0])
+            sat_values.append(mean_hsv[1])
+            val_values.append(mean_hsv[2])
         
-        # Get the average HSV values within this contour
-        mean_hsv = cv2.mean(hsv, mask=contour_mask)
+        if not hue_values:  # If no suitable contours were found
+            return None
         
-        hue_values.append(mean_hsv[0])
-        sat_values.append(mean_hsv[1])
-        val_values.append(mean_hsv[2])
-    
-    if not hue_values:  # If no suitable contours were found
-        return None
-    
-    # Calculate optimal HSV ranges based on samples
-    # For hue, we want a range around the mean
-    mean_hue = np.mean(hue_values)
-    hue_std = max(5.0, np.std(hue_values))  # Minimum std of 5 to ensure some range
-    
-    # For saturation and value, we want minimums that capture the green objects
-    mean_sat = np.mean(sat_values)
-    mean_val = np.mean(val_values)
-    
-    # Create the HSV config with some margins
-    hsv_config = {
-        "hue_min": max(0, int(mean_hue - hue_std * 1.5)),
-        "hue_max": min(179, int(mean_hue + hue_std * 1.5)),
-        "sat_min": max(10, int(mean_sat * 0.7)),  # 70% of mean saturation as minimum
-        "val_min": max(10, int(mean_val * 0.7))   # 70% of mean value as minimum
-    }   
-    return hsv_config
+        # Calculate optimal HSV ranges based on samples
+        mean_hue = np.mean(hue_values)
+        hue_std = max(5.0, np.std(hue_values))  # Minimum std of 5 to ensure some range
+        
+        # For saturation and value, we want minimums that capture the green objects
+        mean_sat = np.mean(sat_values)
+        mean_val = np.mean(val_values)
+        
+        # Create the HSV config with some margins
+        hsv_config = {
+            "hue_min": max(0, int(mean_hue - hue_std * 1.5)),
+            "hue_max": min(179, int(mean_hue + hue_std * 1.5)),
+            "sat_min": max(10, int(mean_sat * 0.7)),  # 70% of mean saturation as minimum
+            "val_min": max(10, int(mean_val * 0.7))   # 70% of mean value as minimum
+        }
+        return hsv_config
+        
+    except Exception as e:
+        print(f"Error in auto green detection: {e}")
+        # Return a fallback configuration
+        return {
+            "hue_min": 40,
+            "hue_max": 80,
+            "sat_min": 50,
+            "val_min": 50
+        }
 
 class CornerTracker:
     def __init__(self, history_length=5):
@@ -191,24 +241,20 @@ class CornerTracker:
         return smoothed if len(smoothed) == 4 else None
 
 def detect_green_corners(frame, config=None):
-    """Detect green corners in the frame with configurable parameters."""
     if config is None:
-        config = {}
-    
-    # Phase 1: Detect green regions.
-    mask = detect_green_regions_hsv(frame, config)
-    
-    # Phase 2: Detect candidate corner points within the green regions.
-    corners = detect_corners_in_mask(mask, config)
-    
-    # Phase 3: Select four corners that form the best quadrilateral.
-    quad = rank_and_select_quad(corners)
-    
+        config = {}   
+    # Phase 1: Detect green regions using HSV
+    mask = detect_green_regions_hsv(frame, config)    
+    # Phase 2: Find exactly one point per green region
+    corners = detect_corners_in_mask(mask, config)   
+    # Phase 3: Select four corners that form the best quadrilateral
+    quad = rank_and_select_quad(corners, config)    
+    # Create perspective view if we have a valid quad
     perspective_view = None
     if quad is not None:
         ordered_quad = order_points(quad)
-        perspective_view = perspective_transform(frame, ordered_quad)
-    return quad, perspective_view, mask  # Also return mask for debugging
+        perspective_view = perspective_transform(frame, ordered_quad)    
+    return quad, perspective_view, mask
 
 # The module can be tested independently:
 if __name__ == "__main__":

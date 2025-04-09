@@ -83,7 +83,17 @@ def main():
     max_trajectory_length = detection_config.get("history_length", 5)
     
     while running:
+        frame_count = 0 
         try:
+            frame_count += 1
+            if frame_count % 2 != 0 and config_manager.get_detection_config().get("enable_frame_skip", False):
+                # Process only every other frame on low-power devices
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    running = False
+                    break
+                continue
+
             # Start timing this frame
             frame_start_time = time.time()
             
@@ -98,6 +108,13 @@ def main():
             scale_factor = display_config["scale_factor"]
             if scale_factor != 1.0:
                 frame = resize_frame(frame, scale=scale_factor)
+
+             # Create a separate copy for processing (could be even smaller for faster processing)
+            processing_scale = config_manager.get_detection_config().get("processing_scale", 1.0)
+            if processing_scale != 1.0 and processing_scale != scale_factor:
+                processing_frame = resize_frame(frame.copy(), scale=processing_scale)
+            else:
+                processing_frame = frame.copy()
             
             # Create a copy for display
             display_frame = frame.copy()
@@ -118,15 +135,21 @@ def main():
 
             # Detect green corners using the updated method
             try:
-                quad, perspective_view, mask = detect_green_corners(frame, detection_config)
+                quad, perspective_view, mask = detect_green_corners(processing_frame, detection_config)
+                # If the processing frame was scaled, adjust the coordinates for the display frame
+                if processing_scale != 1.0:
+                    if quad is not None:
+                        scale_ratio = 1.0 / processing_scale
+                        quad = [(int(x * scale_ratio), int(y * scale_ratio)) for x, y in quad]
+            
             except Exception as e:
-                print(f"Error in green corner detection: {e}")
-                # Reset to default detection parameters if an error occurs
-                detection_config = config_manager.DEFAULT_CONFIG["detection"]
-                config_manager.update_section("detection", detection_config)
-                control_panel.update_trackbars_from_config(detection_config)
-                # Skip this frame
-                continue
+                    print(f"Error in green corner detection: {e}")
+                    # Reset to default detection parameters if an error occurs
+                    detection_config = config_manager.DEFAULT_CONFIG["detection"]
+                    config_manager.update_section("detection", detection_config)
+                    control_panel.update_trackbars_from_config(detection_config)
+                    # Skip this frame
+                    continue
             
             # Show mask if enabled or in debug mode
             if show_mask or debug_mode:

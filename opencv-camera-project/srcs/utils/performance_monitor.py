@@ -6,14 +6,12 @@ from typing import Dict
 
 class PerformanceMonitor:
     def __init__(self, history_length=100):
-
         self.frame_times = []
         self.history_length = history_length
         self.start_time = time.time()
         self.total_frames = 0
 
     def update(self, frame_time: float):
-
         self.frame_times.append(frame_time)
         self.total_frames += 1
         
@@ -22,7 +20,6 @@ class PerformanceMonitor:
             self.frame_times.pop(0)
 
     def get_fps(self) -> float:
-
         if not self.frame_times:
             return 0.0
         
@@ -33,14 +30,12 @@ class PerformanceMonitor:
         return 0.0
 
     def get_overall_fps(self) -> float:
-
         elapsed_time = time.time() - self.start_time
         if elapsed_time > 0:
             return self.total_frames / elapsed_time
         return 0.0
 
     def get_stats(self) -> Dict[str, float]:
-
         if not self.frame_times:
             return {
                 "current_fps": 0.0,
@@ -63,7 +58,6 @@ class PerformanceMonitor:
         }
 
     def log_stats(self, interval=60):
-
         elapsed = time.time() - self.start_time
         if elapsed > 0 and int(elapsed) % interval == 0:
             stats = self.get_stats()

@@ -88,14 +88,12 @@ class ConfigManager:
                     result[section] = values
             else:
                 # Add new section
-                result[section] = values
-                
+                result[section] = values                
         return result
     
     def save_config(self, config: Optional[Dict[str, Any]] = None) -> bool:
         if config is None:
-            config = self.config
-            
+            config = self.config        
         try:
             with open(self.config_path, 'w') as f:
                 json.dump(config, f, indent=4)
@@ -105,32 +103,18 @@ class ConfigManager:
             return False
             
     def get_camera_config(self) -> Dict[str, Any]:
-        """Get camera-related configuration settings."""
         return self.config.get("camera", self.DEFAULT_CONFIG["camera"])
         
     def get_detection_config(self) -> Dict[str, Any]:
-        """Get detection-related configuration settings."""
         return self.config.get("detection", self.DEFAULT_CONFIG["detection"])
         
     def get_display_config(self) -> Dict[str, Any]:
-        """Get display-related configuration settings."""
         return self.config.get("display", self.DEFAULT_CONFIG["display"])
         
     def get_save_config(self) -> Dict[str, Any]:
-        """Get saving-related configuration settings."""
         return self.config.get("save", self.DEFAULT_CONFIG["save"])
         
     def update_section(self, section: str, values: Dict[str, Any]) -> bool:
-        """
-        Update a configuration section with new values.
-        
-        Args:
-            section: Section name to update
-            values: New values to set
-            
-        Returns:
-            True if successful, False otherwise
-        """
         if section not in self.config:
             self.config[section] = {}
             
@@ -140,22 +124,18 @@ class ConfigManager:
         return self.save_config()
     def validate_config(self):
         # Validate detection config
-        detection = self.get_detection_config()
-        
+        detection = self.get_detection_config()  
         # HSV parameters
         detection["hue_min"] = max(0, min(179, detection.get("hue_min", 40)))
         detection["hue_max"] = max(0, min(179, detection.get("hue_max", 80)))
         detection["sat_min"] = max(1, min(255, detection.get("sat_min", 50)))
-        detection["val_min"] = max(1, min(255, detection.get("val_min", 50)))
-        
+        detection["val_min"] = max(1, min(255, detection.get("val_min", 50)))      
         # Corner detection parameters
         detection["qualityLevel"] = max(0.01, min(1.0, detection.get("qualityLevel", 0.01)))
         detection["minDistance"] = max(1, min(100, detection.get("minDistance", 10)))
         detection["maxCorners"] = max(4, min(1000, detection.get("maxCorners", 100)))
-        detection["morphIterations"] = max(0, min(10, detection.get("morphIterations", 1)))
-        
+        detection["morphIterations"] = max(0, min(10, detection.get("morphIterations", 1)))      
         # Update the detection section
-        self.update_section("detection", detection)
-        
+        self.update_section("detection", detection)        
         # Return the validated config
         return self.config

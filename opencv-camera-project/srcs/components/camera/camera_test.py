@@ -7,7 +7,6 @@ import os
 
 # Add the project source directory to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
-
 from components.camera.camera_handler import CameraHandler
 from components.camera.camera_selector import CameraSelector
 from utils.green_corner_detection import detect_green_corners, order_points, CornerTracker, detect_corners_in_mask
@@ -17,14 +16,12 @@ from utils.performance_monitor import PerformanceMonitor
 from components.ui.control_panel import ControlPanel
 
 def main():
-    print("Initializing Camera Tracking Application...")
-    
+    print("Initializing Camera Tracking Application...")    
     # Load configuration
     config_manager = ConfigManager()
     camera_config = config_manager.get_camera_config()
     detection_config = config_manager.get_detection_config()
-    display_config = config_manager.get_display_config()
-    
+    display_config = config_manager.get_display_config()    
     # Initialize performance monitor
     performance_monitor = PerformanceMonitor()
     
@@ -34,8 +31,7 @@ def main():
     
     if selected_camera is None:
         print("No camera selected. Exiting application.")
-        return
-    
+        return    
     # Initialize camera with configuration
     try:
         camera = CameraHandler(
@@ -49,15 +45,12 @@ def main():
         return
     
     # Initialize control panel
-    control_panel = ControlPanel(config_manager)
-    
+    control_panel = ControlPanel(config_manager)   
     # Initialize corner tracker for temporal smoothing
-    corner_tracker = CornerTracker(history_length=detection_config.get("history_length", 5))
-    
+    corner_tracker = CornerTracker(history_length=detection_config.get("history_length", 5))   
     # Add debugging flag
     debug_mode = False
     auto_green_mode = False
-
     print("Camera initialized. Press 'q' to quit.")
     print("Press 'h' to hide/show control panel.")
     print("Press 'r' to reset detection parameters to defaults.")
@@ -71,13 +64,11 @@ def main():
     print("2. Ensure good lighting conditions")
     print("3. Adjust Hue Min/Max to match your specific shade of green")
     print("4. Increase Sat Min if detecting too many non-green objects")
-    print("5. Use debug mode ('d' key) to see what's being detected")
-    
+    print("5. Use debug mode ('d' key) to see what's being detected")    
     # Flag to control the main loop
     running = True
     show_perspective = display_config.get("show_perspective", False)
-    show_mask = False  # New flag to toggle mask display
-    
+    show_mask = False  # New flag to toggle mask display  
     # List to store recent center positions for trajectory tracking
     trajectory = []
     max_trajectory_length = detection_config.get("history_length", 5)
@@ -93,35 +84,28 @@ def main():
                     running = False
                     break
                 continue
-
             # Start timing this frame
-            frame_start_time = time.time()
-            
+            frame_start_time = time.time()          
             # Get frame from camera
             frame = camera.get_frame()
             if frame is None:
                 print("Failed to capture frame")
                 time.sleep(0.1)
-                continue
-            
+                continue        
             # Resize frame if scale factor is not 1.0
             scale_factor = display_config["scale_factor"]
             if scale_factor != 1.0:
                 frame = resize_frame(frame, scale=scale_factor)
-
              # Create a separate copy for processing (could be even smaller for faster processing)
             processing_scale = config_manager.get_detection_config().get("processing_scale", 1.0)
             if processing_scale != 1.0 and processing_scale != scale_factor:
                 processing_frame = resize_frame(frame.copy(), scale=processing_scale)
             else:
-                processing_frame = frame.copy()
-            
+                processing_frame = frame.copy()          
             # Create a copy for display
-            display_frame = frame.copy()
-            
+            display_frame = frame.copy()        
             # Get current detection configuration (may have been updated by control panel)
             detection_config = config_manager.get_detection_config()
-
             # If auto green mode is active, automatically determine HSV values
             if auto_green_mode:
                 # Auto-determine HSV values for green detection
@@ -155,25 +139,20 @@ def main():
             if show_mask or debug_mode:
                 cv2.imshow("Green Mask", mask)
             elif cv2.getWindowProperty("Green Mask", cv2.WND_PROP_VISIBLE) > 0:
-                cv2.destroyWindow("Green Mask")
-            
+                cv2.destroyWindow("Green Mask")           
             # Debug mode visualization
             if debug_mode:
-                debug_frame = frame.copy()
-                
+                debug_frame = frame.copy()             
                 # Get all detected corners before quad selection for debugging
-                all_corners = detect_corners_in_mask(mask, detection_config)
-                
+                all_corners = detect_corners_in_mask(mask, detection_config)           
                 # Draw all detected corners
                 for corner in all_corners:
-                    cv2.circle(debug_frame, corner, 3, (0, 255, 255), -1)
-                    
+                    cv2.circle(debug_frame, corner, 3, (0, 255, 255), -1)               
                 # Label the corners with index numbers for easier identification
                 for i, corner in enumerate(all_corners):
                     cv2.putText(debug_frame, str(i), 
                                (corner[0] + 5, corner[1] + 5),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
-                
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)           
                 # Draw the current detection parameters on the debug view
                 param_text = [
                     f"Hue: {detection_config.get('hue_min', 40)}-{detection_config.get('hue_max', 80)}",
@@ -201,42 +180,35 @@ def main():
 
             # Update corner tracker with new quad
             if quad is not None:
-                corner_tracker.update(quad)
-            
+                corner_tracker.update(quad)         
             # Get smoothed corners for display
             smoothed_quad = corner_tracker.get_smoothed_corners()
             
             if smoothed_quad is not None:
                 # Draw points and quadrilateral lines using smoothed corners
                 for point in smoothed_quad:
-                    cv2.circle(display_frame, tuple(map(int, point)), 5, (0, 255, 0), -1)
-                
+                    cv2.circle(display_frame, tuple(map(int, point)), 5, (0, 255, 0), -1)            
                 # Order the points and draw the quadrilateral
                 pts = order_points(smoothed_quad)
                 for i in range(4):
                     pt1 = tuple(map(int, pts[i]))
                     pt2 = tuple(map(int, pts[(i+1) % 4]))
-                    cv2.line(display_frame, pt1, pt2, (0, 0, 255), 2)
-                
+                    cv2.line(display_frame, pt1, pt2, (0, 0, 255), 2)          
                 # Calculate the center of the quadrilateral
                 center_x = int(sum(p[0] for p in smoothed_quad) / 4)
                 center_y = int(sum(p[1] for p in smoothed_quad) / 4)
-                square_center = (center_x, center_y)
-                
+                square_center = (center_x, center_y)     
                 # Update trajectory
                 trajectory.append(square_center)
                 if len(trajectory) > max_trajectory_length:
-                    trajectory.pop(0)
-                
+                    trajectory.pop(0)       
                 # Draw a crosshair at the center
-                cv2.drawMarker(display_frame, square_center, (0, 0, 255), cv2.MARKER_CROSS, 20, 2)
-                
+                cv2.drawMarker(display_frame, square_center, (0, 0, 255), cv2.MARKER_CROSS, 20, 2)      
                 # Display "Square Detected" text
                 if display_config["show_detection_info"]:
                     cv2.putText(display_frame, "Square Detected!", 
                                (square_center[0] - 60, square_center[1]), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-                
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)      
                 # Optionally show the perspective-corrected view
                 if show_perspective and perspective_view is not None:
                     cv2.imshow("Perspective View", perspective_view)
@@ -252,12 +224,10 @@ def main():
                     # Draw line with increasing intensity for more recent points
                     intensity = int(255 * (i / len(trajectory)))
                     cv2.line(display_frame, trajectory[i-1], trajectory[i], 
-                            (0, intensity, 255-intensity), 2)
-            
+                            (0, intensity, 255-intensity), 2)        
             # Calculate frame processing time and update performance monitor
             frame_time = time.time() - frame_start_time
-            performance_monitor.update(frame_time)
-            
+            performance_monitor.update(frame_time)           
             # Display FPS if enabled
             if display_config["show_fps"]:
                 fps = performance_monitor.get_fps()
@@ -270,14 +240,11 @@ def main():
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
             
             # Show the display frame
-            cv2.imshow("Camera Feed", display_frame)
-            
+            cv2.imshow("Camera Feed", display_frame)         
             # Use a shorter wait time to improve key responsiveness
-            key = cv2.waitKey(10) & 0xFF
-            
+            key = cv2.waitKey(10) & 0xFF    
             # Update control panel with key press
-            control_panel.update(key)
-            
+            control_panel.update(key)    
             # Check for key presses
             if key == ord('q'):
                 print("User requested exit (q key pressed)")
@@ -317,8 +284,7 @@ def main():
     print("Cleaning up resources...")
     camera.release()
     control_panel.close()
-    cv2.destroyAllWindows()
-    
+    cv2.destroyAllWindows()    
     # Print final performance stats
     stats = performance_monitor.get_stats()
     print("\nPerformance Summary:")

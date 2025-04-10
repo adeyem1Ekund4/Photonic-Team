@@ -18,41 +18,32 @@ class ControlPanel:
         """Create the control panel window with trackbars for green corner detection."""
         # Create a window
         cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(self.window_name, self.panel_width, self.panel_height)
-        
+        cv2.resizeWindow(self.window_name, self.panel_width, self.panel_height)        
         # Get current configuration
-        detection_config = self.config_manager.get_detection_config()
-        
+        detection_config = self.config_manager.get_detection_config()        
         # HSV Color Range
         cv2.createTrackbar("Hue Min", self.window_name, 
                           detection_config.get("hue_min", 40), 179, 
-                          self._on_hue_min_change)
-        
+                          self._on_hue_min_change)      
         cv2.createTrackbar("Hue Max", self.window_name, 
                           detection_config.get("hue_max", 80), 179, 
-                          self._on_hue_max_change)
-        
+                          self._on_hue_max_change)   
         cv2.createTrackbar("Sat Min", self.window_name, 
                           detection_config.get("sat_min", 50), 255, 
-                          self._on_sat_min_change)
-        
+                          self._on_sat_min_change)        
         cv2.createTrackbar("Val Min", self.window_name, 
                           detection_config.get("val_min", 50), 255, 
-                          self._on_val_min_change)
-        
+                          self._on_val_min_change)        
         # Corner Detection Parameters
         cv2.createTrackbar("Quality Level (x100)", self.window_name, 
                           int(detection_config.get("qualityLevel", 1) * 100), 100, 
-                          self._on_quality_level_change)
-        
+                          self._on_quality_level_change)        
         cv2.createTrackbar("Min Distance", self.window_name, 
                           detection_config.get("minDistance", 10), 50, 
-                          self._on_min_distance_change)
-        
+                          self._on_min_distance_change)       
         cv2.createTrackbar("Max Corners", self.window_name, 
                           detection_config.get("maxCorners", 100), 200, 
-                          self._on_max_corners_change)
-        
+                          self._on_max_corners_change)       
         # Morphological Operations
         cv2.createTrackbar("Morph Iterations", self.window_name, 
                           detection_config.get("morphIterations", 1), 5, 
@@ -60,8 +51,7 @@ class ControlPanel:
         
         cv2.createTrackbar("Square Tolerance (x100)", self.window_name, 
                           int(detection_config.get("square_tolerance", 0.3) * 100), 100, 
-                          self._on_square_tolerance_change)
-        
+                          self._on_square_tolerance_change)        
         # Create a background image for the panel
         self.panel_image = np.ones((self.panel_height, self.panel_width, 3), dtype=np.uint8) * 240
         self._update_panel_image()
@@ -191,8 +181,7 @@ class ControlPanel:
 
     def _update_panel_image(self):
         if not self.is_visible:
-            return
-            
+            return    
         # Clear the image
         self.panel_image.fill(240)
         
@@ -208,8 +197,7 @@ class ControlPanel:
                     (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
         y_pos = 70
-        line_height = 30
-        
+        line_height = 30   
         # HSV Range
         cv2.putText(self.panel_image, f"Hue Range: {detection_config.get('hue_min', 40)}-{detection_config.get('hue_max', 80)}", 
                 (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
@@ -275,8 +263,7 @@ class ControlPanel:
             "- Press 'd' to toggle debug view",
             "- Press 'r' to reset to defaults",
             "- Press 'h' to hide this panel"
-        ]
-        
+        ]      
         for instruction in instructions:
             cv2.putText(self.panel_image, instruction, 
                     (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (50, 50, 50), 1)
@@ -317,10 +304,8 @@ class ControlPanel:
                 "threshold_value": self.config_manager.get_detection_config().get("threshold_value", 245),
                 "square_tolerance": self.config_manager.get_detection_config().get("square_tolerance", 0.2),
                 "history_length": self.config_manager.get_detection_config().get("history_length", 5)
-            }
-            
-            self.config_manager.update_section("detection", detection_config)
-            
+            }      
+            self.config_manager.update_section("detection", detection_config)      
             # Update trackbars to match defaults
             cv2.setTrackbarPos("Hue Min", self.window_name, detection_config["hue_min"])
             cv2.setTrackbarPos("Hue Max", self.window_name, detection_config["hue_max"])
@@ -329,8 +314,7 @@ class ControlPanel:
             cv2.setTrackbarPos("Quality Level (x100)", self.window_name, int(detection_config["qualityLevel"] * 100))
             cv2.setTrackbarPos("Min Distance", self.window_name, detection_config["minDistance"])
             cv2.setTrackbarPos("Max Corners", self.window_name, detection_config["maxCorners"])
-            cv2.setTrackbarPos("Morph Iterations", self.window_name, detection_config["morphIterations"])
-            
+            cv2.setTrackbarPos("Morph Iterations", self.window_name, detection_config["morphIterations"])     
             self._update_panel_image()
 
     def reset_to_defaults(self):
@@ -351,10 +335,8 @@ class ControlPanel:
             "threshold_value": self.config_manager.get_detection_config().get("threshold_value", 245),
             "square_tolerance": self.config_manager.get_detection_config().get("square_tolerance", 0.2),
             "history_length": self.config_manager.get_detection_config().get("history_length", 5)
-        }
-        
+        } 
         self.config_manager.update_section("detection", detection_config)
-        
         # Update trackbars to match defaults
         self.update_trackbars_from_config(detection_config)
     

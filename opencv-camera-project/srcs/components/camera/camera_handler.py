@@ -5,15 +5,12 @@ class CameraHandler:
     def __init__(self, camera_index=0, resolution=(640, 480), fps=30):
         self.cap = cv2.VideoCapture(camera_index)
         if not self.cap.isOpened():
-            raise ValueError(f"Unable to open camera with index {camera_index}")
-        
+            raise ValueError(f"Unable to open camera with index {camera_index}")        
         # Set resolution
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[0])
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])
-        
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])     
         # Set FPS
-        self.cap.set(cv2.CAP_PROP_FPS, fps)
-        
+        self.cap.set(cv2.CAP_PROP_FPS, fps)       
         # Verify settings were applied
         self.actual_resolution = (
             int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
@@ -45,8 +42,7 @@ class CameraHandler:
     def set_resolution(self, width, height):
         """Set camera resolution and return if it was successful."""
         result_width = self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        result_height = self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        
+        result_height = self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)        
         # Update actual resolution
         self.actual_resolution = (
             int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
@@ -57,8 +53,7 @@ class CameraHandler:
 
     def set_fps(self, fps):
         """Set camera FPS and return if it was successful."""
-        result = self.cap.set(cv2.CAP_PROP_FPS, fps)
-        
+        result = self.cap.set(cv2.CAP_PROP_FPS, fps)       
         # Update actual FPS
         self.actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
         

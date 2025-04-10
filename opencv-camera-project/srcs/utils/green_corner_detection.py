@@ -6,28 +6,23 @@ from itertools import combinations
 
 def detect_green_regions_hsv(frame, config=None):
     if config is None:
-        config = {}
-    
+        config = {}    
     # Get parameters from config with clear defaults and validation
     hue_min = max(0, min(179, config.get("hue_min", 40)))
     hue_max = max(0, min(179, config.get("hue_max", 80)))
     sat_min = max(1, min(255, config.get("sat_min", 50)))
     val_min = max(1, min(255, config.get("val_min", 50)))
-    morph_iterations = max(0, min(10, config.get("morphIterations", 1)))
-    
+    morph_iterations = max(0, min(10, config.get("morphIterations", 1)))    
     # Create HSV range for green detection
     lower_green = np.array([hue_min, sat_min, val_min])
-    upper_green = np.array([hue_max, 255, 255])
-    
+    upper_green = np.array([hue_max, 255, 255])   
     # Convert to HSV and create mask
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, lower_green, upper_green)
-    
+    mask = cv2.inRange(hsv, lower_green, upper_green)   
     # Apply morphological operations to clean up the mask
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=morph_iterations)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=morph_iterations)
-    
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=morph_iterations)   
     return mask
 
 def detect_corners_in_mask(mask, config=None):
@@ -58,25 +53,21 @@ def rank_and_select_quad(corners, config=None):
         return None
     
     best_quad = None
-    max_area = 0
-    
+    max_area = 0   
     # Try all combinations of 4 corners
     for quad in combinations(corners, 4):
-        pts = np.array(quad, dtype=np.float32)
-        
+        pts = np.array(quad, dtype=np.float32)    
         # Check if these points form a convex quadrilateral
         hull = cv2.convexHull(pts)
         if len(hull) == 4:  # It's a quadrilateral
             # Calculate area
-            area = cv2.contourArea(hull)
-            
+            area = cv2.contourArea(hull)     
             # Check if it's roughly square-like
             tolerance = config.get("square_tolerance", 0.3)
             if is_square_like(quad, tolerance=tolerance):
                 if area > max_area:
                     max_area = area
-                    best_quad = quad
-    
+                    best_quad = quad 
     return best_quad
 
 def is_square_like(quad, tolerance=0.3):
@@ -106,8 +97,7 @@ def order_points(pts):
     # The top-left will have the smallest sum and bottom-right the largest sum
     s = pts.sum(axis=1)
     # The top-right will have the smallest difference and bottom-left the largest difference
-    diff = np.diff(pts, axis=1)
-    
+    diff = np.diff(pts, axis=1)    
     ordered = np.zeros((4, 2), dtype="float32")
     ordered[0] = pts[np.argmin(s)]
     ordered[2] = pts[np.argmax(s)]
@@ -118,17 +108,14 @@ def order_points(pts):
 def perspective_transform(frame, quad):
     ordered = order_points(quad)
     (tl, tr, br, bl) = ordered
-
     # Compute the width of the new image
     widthA = np.linalg.norm(br - bl)
     widthB = np.linalg.norm(tr - tl)
-    maxWidth = int(max(widthA, widthB))
-    
+    maxWidth = int(max(widthA, widthB)) 
     # Compute the height of the new image
     heightA = np.linalg.norm(tr - br)
     heightB = np.linalg.norm(tl - bl)
     maxHeight = int(max(heightA, heightB))
-    
     # Destination points for perspective transform
     dst = np.array([
         [0, 0],
@@ -145,25 +132,20 @@ def auto_detect_green_hsv(frame, sample_regions=5):
     """Auto-detect HSV values for green markers with better error handling."""
     try:
         # Convert to HSV for color analysis
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)      
         # Define a broad green range to start with
         lower_green = np.array([35, 30, 30])
-        upper_green = np.array([85, 255, 255])
-        
+        upper_green = np.array([85, 255, 255])     
         # Create a mask for the broad green range
-        broad_mask = cv2.inRange(hsv, lower_green, upper_green)
-        
+        broad_mask = cv2.inRange(hsv, lower_green, upper_green)      
         # Find contours in the broad mask
-        contours, _ = cv2.findContours(broad_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
+        contours, _ = cv2.findContours(broad_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)      
         # Sort contours by area (largest first)
         contours = sorted(contours, key=cv2.contourArea, reverse=True)
         
         # If no significant green regions found
         if not contours or cv2.contourArea(contours[0]) < 100:
-            return None
-        
+            return None       
         # Sample HSV values from the largest green regions
         hue_values = []
         sat_values = []
@@ -175,11 +157,9 @@ def auto_detect_green_hsv(frame, sample_regions=5):
                 
             # Create a mask for this contour
             contour_mask = np.zeros_like(broad_mask)
-            cv2.drawContours(contour_mask, [contours[i]], 0, 255, -1)
-            
+            cv2.drawContours(contour_mask, [contours[i]], 0, 255, -1)       
             # Get the average HSV values within this contour
-            mean_hsv = cv2.mean(hsv, mask=contour_mask)
-            
+            mean_hsv = cv2.mean(hsv, mask=contour_mask)     
             hue_values.append(mean_hsv[0])
             sat_values.append(mean_hsv[1])
             val_values.append(mean_hsv[2])
@@ -189,12 +169,10 @@ def auto_detect_green_hsv(frame, sample_regions=5):
         
         # Calculate optimal HSV ranges based on samples
         mean_hue = np.mean(hue_values)
-        hue_std = max(5.0, np.std(hue_values))  # Minimum std of 5 to ensure some range
-        
+        hue_std = max(5.0, np.std(hue_values))  # Minimum std of 5 to ensure some range  
         # For saturation and value, we want minimums that capture the green objects
         mean_sat = np.mean(sat_values)
-        mean_val = np.mean(val_values)
-        
+        mean_val = np.mean(val_values)  
         # Create the HSV config with some margins
         hsv_config = {
             "hue_min": max(0, int(mean_hue - hue_std * 1.5)),
@@ -259,7 +237,6 @@ def detect_green_corners(frame, config=None):
 # The module can be tested independently:
 if __name__ == "__main__":
     cap = cv2.VideoCapture(0)
-    
     # Create a simple window for adjusting parameters
     cv2.namedWindow("Controls")
     cv2.createTrackbar("Hue Min", "Controls", 40, 179, lambda x: None)
@@ -268,8 +245,7 @@ if __name__ == "__main__":
     cv2.createTrackbar("Val Min", "Controls", 50, 255, lambda x: None)
     cv2.createTrackbar("Quality Level", "Controls", 1, 100, lambda x: None)
     cv2.createTrackbar("Min Distance", "Controls", 10, 50, lambda x: None)
-    cv2.createTrackbar("Morph Iterations", "Controls", 1, 5, lambda x: None)
-    
+    cv2.createTrackbar("Morph Iterations", "Controls", 1, 5, lambda x: None)   
     # Initialize corner tracker for smoothing
     corner_tracker = CornerTracker(history_length=5)
     
@@ -287,15 +263,12 @@ if __name__ == "__main__":
             "qualityLevel": cv2.getTrackbarPos("Quality Level", "Controls") / 100.0,
             "minDistance": cv2.getTrackbarPos("Min Distance", "Controls"),
             "morphIterations": cv2.getTrackbarPos("Morph Iterations", "Controls")
-        }
-        
+        }   
         # Detect green corners
-        quad, transformed, mask = detect_green_corners(frame, config)
-        
+        quad, transformed, mask = detect_green_corners(frame, config)   
         # Update corner tracker
         if quad is not None:
-            corner_tracker.update(quad)
-            
+            corner_tracker.update(quad)    
         # Get smoothed corners
         smoothed_quad = corner_tracker.get_smoothed_corners()
         
@@ -305,8 +278,7 @@ if __name__ == "__main__":
         if smoothed_quad is not None:
             # Draw smoothed corner points
             for point in smoothed_quad:
-                cv2.circle(frame, tuple(map(int, point)), 5, (255, 0, 0), -1)
-            
+                cv2.circle(frame, tuple(map(int, point)), 5, (255, 0, 0), -1)     
             # Draw lines between the points (using the ordered quadrilateral)
             pts = order_points(smoothed_quad)
             for i in range(4):
@@ -315,8 +287,7 @@ if __name__ == "__main__":
                 cv2.line(frame, pt1, pt2, (0, 0, 255), 2)
             
             cv2.putText(frame, "Square Detected", (int(pts[0][0]), int(pts[0][1]) - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-        
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2) 
         # If original (non-smoothed) corners detected, also show them
         if quad is not None:
             for point in quad:

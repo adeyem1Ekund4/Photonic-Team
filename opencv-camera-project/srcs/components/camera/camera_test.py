@@ -151,22 +151,20 @@ def main():
                 # Label the corners with index numbers for easier identification
                 for i, corner in enumerate(all_corners):
                     cv2.putText(debug_frame, str(i), 
-                               (corner[0] + 5, corner[1] + 5),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)           
+                            (corner[0] + 5, corner[1] + 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)                        
                 # Draw the current detection parameters on the debug view
                 param_text = [
                     f"Hue: {detection_config.get('hue_min', 40)}-{detection_config.get('hue_max', 80)}",
                     f"Sat Min: {detection_config.get('sat_min', 50)}",
                     f"Val Min: {detection_config.get('val_min', 50)}",
                     f"Quality: {detection_config.get('qualityLevel', 0.01):.2f}",
-                    f"Min Dist: {detection_config.get('minDistance', 10)}",
+                    f"Square Tolerance: {detection_config.get('square_tolerance', 0.3):.2f}",
                     f"Total corners: {len(all_corners)}"
-                ]
-                
+                ]            
                 for i, text in enumerate(param_text):
                     cv2.putText(debug_frame, text, (10, 30 + i*25),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-                
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)         
                 # Show the debug view
                 cv2.imshow("Debug View", debug_frame)
             else:

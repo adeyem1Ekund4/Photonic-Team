@@ -20,7 +20,7 @@ class ConfigManager:
             "max_area": 500,
             "square_tolerance": 0.3,
             "threshold_value": 245,
-            "square_tolerance": 0.2,
+            "square_tolerance": 0.3,
             "history_length": 5,
             "circularity_threshold": 0.7,
             "merge_distance": 10,

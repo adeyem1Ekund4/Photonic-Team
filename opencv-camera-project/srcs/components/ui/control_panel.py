@@ -181,13 +181,11 @@ class ControlPanel:
 
     def _update_panel_image(self):
         if not self.is_visible:
-            return    
+            return           
         # Clear the image
-        self.panel_image.fill(240)
-        
+        self.panel_image.fill(240)       
         # Get current configuration
-        detection_config = self.config_manager.get_detection_config()
-        
+        detection_config = self.config_manager.get_detection_config()    
         # Add title
         cv2.putText(self.panel_image, "Green Corner Detection Settings", 
                 (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 100, 0), 2)
@@ -195,83 +193,75 @@ class ControlPanel:
         if hasattr(self, 'auto_green_mode') and self.auto_green_mode:
             cv2.putText(self.panel_image, "AUTO MODE ACTIVE", 
                     (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-
         y_pos = 70
-        line_height = 30   
-        # HSV Range
+        line_height = 30       
+        # HSV Range with simplified explanations
         cv2.putText(self.panel_image, f"Hue Range: {detection_config.get('hue_min', 40)}-{detection_config.get('hue_max', 80)}", 
                 (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        cv2.putText(self.panel_image, "(Adjust to match your green markers)", 
+        cv2.putText(self.panel_image, "(Adjust to match your specific shade of green)", 
                 (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
         y_pos += line_height + 20
         
         cv2.putText(self.panel_image, f"Sat Min: {detection_config.get('sat_min', 50)}", 
                 (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        cv2.putText(self.panel_image, "(Higher values filter out whitish colors)", 
+        cv2.putText(self.panel_image, "(Higher = more vivid green, lower = detect pale green)", 
                 (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
         y_pos += line_height + 20
         
         cv2.putText(self.panel_image, f"Val Min: {detection_config.get('val_min', 50)}", 
                 (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        cv2.putText(self.panel_image, "(Higher values filter out dark areas)", 
+        cv2.putText(self.panel_image, "(Higher = brighter green, lower = detect darker green)", 
                 (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
-        y_pos += line_height + 20
-        
-        # Corner Detection
+        y_pos += line_height + 20     
+        # Corner Detection with simplified explanations
         cv2.putText(self.panel_image, f"Quality Level: {detection_config.get('qualityLevel', 0.01):.2f}", 
                 (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        cv2.putText(self.panel_image, "(Lower values detect more corners)", 
+        cv2.putText(self.panel_image, "(Lower = detect more corners, may include noise)", 
                 (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
-        y_pos += line_height + 20
-        
-        cv2.putText(self.panel_image, f"Min Distance: {detection_config.get('minDistance', 10)}", 
-                (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        cv2.putText(self.panel_image, "(Minimum pixel distance between corners)", 
-                (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
+        y_pos += line_height + 20      
+        # Remove Min Distance explanation or mark as deprecated
+        cv2.putText(self.panel_image, "Min Distance: DEPRECATED - Will be removed", 
+                (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (150, 150, 150), 1)
         y_pos += line_height + 20
         
         cv2.putText(self.panel_image, f"Max Corners: {detection_config.get('maxCorners', 100)}", 
                 (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        cv2.putText(self.panel_image, "(Maximum corners to detect)", 
+        cv2.putText(self.panel_image, "(Maximum number of corners to detect)", 
                 (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
         y_pos += line_height + 20
         
         cv2.putText(self.panel_image, f"Morph Iterations: {detection_config.get('morphIterations', 1)}", 
                 (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        cv2.putText(self.panel_image, "(Higher values clean noise but blur edges)", 
+        cv2.putText(self.panel_image, "(Higher = smoother mask, may merge close corners)", 
                 (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
         y_pos += line_height * 2
-
-         # Add square tolerance to the panel text
+        # Add square tolerance with clear explanation
         cv2.putText(self.panel_image, f"Square Tolerance: {detection_config.get('square_tolerance', 0.3):.2f}", 
                 (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 0), 1)
-        cv2.putText(self.panel_image, "(Higher values allow more distorted squares)", 
+        cv2.putText(self.panel_image, "(Higher = accept more distorted squares)", 
                 (20, y_pos + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
-        y_pos += line_height + 20
-        
+        y_pos += line_height + 20    
         # Instructions
-        cv2.putText(self.panel_image, "Instructions:", 
+        cv2.putText(self.panel_image, "Quick Guide:", 
                 (10, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
         y_pos += line_height
         
         instructions = [
-            "- Adjust Hue to match your green markers",
-            "- Increase Sat Min to filter out white/gray",
-            "- Adjust Val Min to filter out dark areas",
-            "- Lower Quality Level to detect more corners",
-            "- Increase Min Distance to separate corners",
-            "- Press 'd' to toggle debug view",
-            "- Press 'r' to reset to defaults",
-            "- Press 'h' to hide this panel"
+            "1. Adjust Hue to match your green markers",
+            "2. Increase Sat Min if detecting non-green objects",
+            "3. Adjust Val Min if lighting is poor",
+            "4. Press 'd' to see debug view with all corners",
+            "5. Increase Square Tolerance if square isn't forming",
+            "6. Press 'a' to try auto-detection of green",
+            "7. Press 'm' to see the green mask"
         ]      
         for instruction in instructions:
             cv2.putText(self.panel_image, instruction, 
                     (20, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (50, 50, 50), 1)
-            y_pos += line_height - 5  # Slightly reduced spacing for instructions
-        
+            y_pos += line_height - 5  # Slightly reduced spacing for instructions       
         # Display the panel image
         cv2.imshow(self.window_name, self.panel_image)
-    
+   
     def update(self, key=None):
         if not self.is_visible:
             # If panel is hidden and 'h' is pressed, show it

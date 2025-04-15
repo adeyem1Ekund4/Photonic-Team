@@ -26,15 +26,14 @@ def detect_green_regions_hsv(frame, config=None):
     return mask
 
 def detect_corners_in_mask(mask, config=None):
-    """Detect corners in the mask with configurable parameters."""
     if config is None:
-        config = {}
+        config = {}    
     # Find contours in the mask first
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)    
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)       
     # Filter contours by area to remove noise
     min_area = config.get("min_area", 5)
     max_area = config.get("max_area", 500)
-    valid_contours = [c for c in contours if min_area <= cv2.contourArea(c) <= max_area]   
+    valid_contours = [c for c in contours if min_area <= cv2.contourArea(c) <= max_area]      
     # Find exactly one point per contour (centroid)
     corners = []
     for contour in valid_contours:
@@ -42,32 +41,31 @@ def detect_corners_in_mask(mask, config=None):
         if M["m00"] > 0:  # Avoid division by zero
             cX = int(M["m10"] / M["m00"])
             cY = int(M["m01"] / M["m00"])
-            corners.append((cX, cY))    
+            corners.append((cX, cY))     
     return corners
 
 def rank_and_select_quad(corners, config=None):
     if config is None:
-        config = {}
-        
+        config = {}       
     if len(corners) < 4:
-        return None
-    
+        return None    
     best_quad = None
-    max_area = 0   
+    max_area = 0       
     # Try all combinations of 4 corners
     for quad in combinations(corners, 4):
         pts = np.array(quad, dtype=np.float32)    
+        
         # Check if these points form a convex quadrilateral
         hull = cv2.convexHull(pts)
         if len(hull) == 4:  # It's a quadrilateral
             # Calculate area
             area = cv2.contourArea(hull)     
-            # Check if it's roughly square-like
+            # Use a more relaxed square check with higher tolerance
             tolerance = config.get("square_tolerance", 0.3)
             if is_square_like(quad, tolerance=tolerance):
                 if area > max_area:
                     max_area = area
-                    best_quad = quad 
+                    best_quad = quad   
     return best_quad
 
 def is_square_like(quad, tolerance=0.3):

@@ -14,6 +14,7 @@ from utils.image_processing import apply_grayscale, resize_frame
 from utils.config import ConfigManager
 from utils.performance_monitor import PerformanceMonitor
 from components.ui.control_panel import ControlPanel
+from utils.data_recorder import DataRecorder
 
 def main():
     print("Initializing Camera Tracking Application...")    
@@ -47,7 +48,14 @@ def main():
     # Initialize control panel
     control_panel = ControlPanel(config_manager)   
     # Initialize corner tracker for temporal smoothing
-    corner_tracker = CornerTracker(history_length=detection_config.get("history_length", 5))   
+    corner_tracker = CornerTracker(history_length=detection_config.get("history_length", 5))
+
+    data_recorder = DataRecorder(
+        output_dir=config_manager.get_save_config().get("output_directory", "output"),
+        filename_prefix=config_manager.get_save_config().get("filename_prefix", "tracking_data_"),
+        interval_ms=250
+    )
+
     # Add debugging flag
     debug_mode = False
     auto_green_mode = False
@@ -58,6 +66,7 @@ def main():
     print("Press 'm' to toggle mask view.")
     print("Press 'd' to toggle debug mode (helps with parameter tuning).")
     print("Press 'a' to toggle auto green detection mode.")
+    print("Press 'v' to start/stop recording square center points")
     print("NOTE: Make sure the camera window is in focus when pressing keys")
     print("\nTIPS FOR GREEN MARKER DETECTION:")
     print("1. Use bright green markers (post-it notes work well)")
@@ -73,8 +82,9 @@ def main():
     trajectory = []
     max_trajectory_length = detection_config.get("history_length", 5)
     
+    frame_count = 0
     while running:
-        frame_count = 0 
+        #frame_count = 0 
         try:
             frame_count += 1
             if frame_count % 2 != 0 and config_manager.get_detection_config().get("enable_frame_skip", False):
@@ -83,40 +93,29 @@ def main():
                 if key == ord('q'):
                     running = False
                     break
-                continue
+                continue                
             # Start timing this frame
-            frame_start_time = time.time()          
+            frame_start_time = time.time()            
             # Get frame from camera
             frame = camera.get_frame()
             if frame is None:
                 print("Failed to capture frame")
                 time.sleep(0.1)
-                continue        
+                continue               
             # Resize frame if scale factor is not 1.0
             scale_factor = display_config["scale_factor"]
             if scale_factor != 1.0:
-                frame = resize_frame(frame, scale=scale_factor)
-             # Create a separate copy for processing (could be even smaller for faster processing)
+                frame = resize_frame(frame, scale=scale_factor)               
+            # Create a separate copy for processing (could be even smaller for faster processing)
             processing_scale = config_manager.get_detection_config().get("processing_scale", 1.0)
             if processing_scale != 1.0 and processing_scale != scale_factor:
                 processing_frame = resize_frame(frame.copy(), scale=processing_scale)
             else:
-                processing_frame = frame.copy()          
+                processing_frame = frame.copy()                
             # Create a copy for display
-            display_frame = frame.copy()        
+            display_frame = frame.copy()            
             # Get current detection configuration (may have been updated by control panel)
-            detection_config = config_manager.get_detection_config()
-            # If auto green mode is active, automatically determine HSV values
-            if auto_green_mode:
-                # Auto-determine HSV values for green detection
-                auto_hsv_values = auto_detect_green_hsv(frame)
-                if auto_hsv_values:
-                    # Update detection/auto-determined values
-                    detection_config.update(auto_hsv_values)
-                    # Update trackbars/visible
-                    if control_panel.is_visible:
-                        control_panel.update_trackbars_from_config(detection_config)
-
+            detection_config = config_manager.get_detection_config()           
             # Detect green corners using the updated method
             try:
                 quad, perspective_view, mask = detect_green_corners(processing_frame, detection_config)
@@ -124,8 +123,7 @@ def main():
                 if processing_scale != 1.0:
                     if quad is not None:
                         scale_ratio = 1.0 / processing_scale
-                        quad = [(int(x * scale_ratio), int(y * scale_ratio)) for x, y in quad]
-            
+                        quad = [(int(x * scale_ratio), int(y * scale_ratio)) for x, y in quad]           
             except Exception as e:
                     print(f"Error in green corner detection: {e}")
                     # Reset to default detection parameters if an error occurs
@@ -133,8 +131,7 @@ def main():
                     config_manager.update_section("detection", detection_config)
                     control_panel.update_trackbars_from_config(detection_config)
                     # Skip this frame
-                    continue
-            
+                    continue         
             # Show mask if enabled or in debug mode
             if show_mask or debug_mode:
                 cv2.imshow("Green Mask", mask)
@@ -236,7 +233,21 @@ def main():
             cv2.putText(display_frame, instructions, 
                        (10, display_frame.shape[0] - 40), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-            
+            if smoothed_quad is not None:
+            # Calculate the center of the quadrilateral
+                center_x = int(sum(p[0] for p in smoothed_quad) / 4)
+                center_y = int(sum(p[1] for p in smoothed_quad) / 4)
+                square_center = (center_x, center_y)
+                
+                # Record the center point if recording is active
+                data_recorder.record_point(square_center)
+                
+                # Show recording status on display
+                if data_recorder.is_recording:
+                    cv2.putText(display_frame, "RECORDING", 
+                            (display_frame.shape[1] - 120, 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
             # Show the display frame
             cv2.imshow("Camera Feed", display_frame)         
             # Use a shorter wait time to improve key responsiveness
@@ -267,6 +278,13 @@ def main():
                         cv2.destroyWindow("Debug View")
                     if not show_mask and cv2.getWindowProperty("Green Mask", cv2.WND_PROP_VISIBLE) > 0:
                         cv2.destroyWindow("Green Mask")
+            elif key == ord('r'):
+                if not data_recorder.is_recording:
+                    data_recorder.start_recording()
+                    print("Recording started")
+                else:
+                    data_recorder.stop_recording()
+                    print("Recording stopped")
                 
         except KeyboardInterrupt:
             print("Keyboard interrupt detected. Exiting...")
@@ -280,6 +298,8 @@ def main():
     
     # Cleanup
     print("Cleaning up resources...")
+    if data_recorder.is_recording:
+        data_recorder.stop_recording()
     camera.release()
     control_panel.close()
     cv2.destroyAllWindows()    

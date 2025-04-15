@@ -261,7 +261,7 @@ class ControlPanel:
             y_pos += line_height - 5  # Slightly reduced spacing for instructions       
         # Display the panel image
         cv2.imshow(self.window_name, self.panel_image)
-   
+
     def update(self, key=None):
         if not self.is_visible:
             # If panel is hidden and 'h' is pressed, show it

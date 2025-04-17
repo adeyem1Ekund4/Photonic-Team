@@ -11,6 +11,9 @@ class ControlPanel:
         self.panel_height = 500
         self.is_visible = config_manager.get_display_config().get("show_control_panel", True)
         
+        # Initialize panel_image before creating trackbars that might trigger callbacks
+        self.panel_image = np.ones((self.panel_height, self.panel_width, 3), dtype=np.uint8) * 240
+        
         if self.is_visible:
             self._create_panel()
     
@@ -52,9 +55,11 @@ class ControlPanel:
         cv2.createTrackbar("Square Tolerance (x100)", self.window_name, 
                         int(detection_config.get("square_tolerance", 0.35) * 100), 100,  # Updated default
                         self._on_square_tolerance_change)       
-        # Create a background image for the panel
-        self.panel_image = np.ones((self.panel_height, self.panel_width, 3), dtype=np.uint8) * 240
+        
+        # No need to create panel_image here since it's already initialized in __init__
+        # Just update the panel image
         self._update_panel_image()
+
     
     def _on_hue_min_change(self, value):
         try:

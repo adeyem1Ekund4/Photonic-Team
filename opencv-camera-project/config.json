@@ -28,11 +28,11 @@
         },
         "hue_min": 39,
         "hue_max": 84,
-        "sat_min": 18,
-        "val_min": 66,
-        "qualityLevel": 0.07,
-        "minDistance": 10,
-        "maxCorners": 97,
+        "sat_min": 19,
+        "val_min": 62,
+        "qualityLevel": 0.08,
+        "minDistance": 8,
+        "maxCorners": 100,
         "morphIterations": 1
     },
     "display": {

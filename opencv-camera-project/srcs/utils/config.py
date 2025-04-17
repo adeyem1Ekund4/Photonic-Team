@@ -21,7 +21,7 @@ class ConfigManager:
             "square_tolerance": 0.3,
             "threshold_value": 245,
             "square_tolerance": 0.3,
-            "processing_scale": 1.0,
+            "processing_scale": 0.5,
             "enable_frame_skip": False,  
             "history_length": 5,
             "circularity_threshold": 0.7,

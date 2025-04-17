@@ -84,7 +84,6 @@ def main():
     
     frame_count = 0
     while running:
-        #frame_count = 0 
         try:
             frame_count += 1
             if frame_count % 2 != 0 and config_manager.get_detection_config().get("enable_frame_skip", False):
@@ -111,11 +110,8 @@ def main():
             if processing_scale != 1.0 and processing_scale != scale_factor:
                 processing_frame = resize_frame(frame.copy(), scale=processing_scale)
             else:
-                processing_frame = frame.copy()                
-            # Create a copy for display
-            display_frame = frame.copy()            
-            # Get current detection configuration (may have been updated by control panel)
-            detection_config = config_manager.get_detection_config()           
+                processing_frame = frame.copy()
+                
             # Detect green corners using the updated method
             try:
                 quad, perspective_view, mask = detect_green_corners(processing_frame, detection_config)
@@ -123,15 +119,15 @@ def main():
                 if processing_scale != 1.0:
                     if quad is not None:
                         scale_ratio = 1.0 / processing_scale
-                        quad = [(int(x * scale_ratio), int(y * scale_ratio)) for x, y in quad]           
+                        quad = [(int(x * scale_ratio), int(y * scale_ratio)) for x, y in quad]
             except Exception as e:
-                    print(f"Error in green corner detection: {e}")
-                    # Reset to default detection parameters if an error occurs
-                    detection_config = config_manager.DEFAULT_CONFIG["detection"]
-                    config_manager.update_section("detection", detection_config)
-                    control_panel.update_trackbars_from_config(detection_config)
-                    # Skip this frame
-                    continue         
+                print(f"Error in green corner detection: {e}")
+                # Reset to default detection parameters if an error occurs
+                detection_config = config_manager.DEFAULT_CONFIG["detection"]
+                config_manager.update_section("detection", detection_config)
+                control_panel.update_trackbars_from_config(detection_config)
+                # Skip this frame
+                continue         
             # Show mask if enabled or in debug mode
             if show_mask or debug_mode:
                 cv2.imshow("Green Mask", mask)
@@ -278,7 +274,7 @@ def main():
                         cv2.destroyWindow("Debug View")
                     if not show_mask and cv2.getWindowProperty("Green Mask", cv2.WND_PROP_VISIBLE) > 0:
                         cv2.destroyWindow("Green Mask")
-            elif key == ord('r'):
+            elif key == ord('v'):
                 if not data_recorder.is_recording:
                     data_recorder.start_recording()
                     print("Recording started")

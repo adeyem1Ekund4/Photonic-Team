@@ -6,23 +6,24 @@ from itertools import combinations
 
 def detect_green_regions_hsv(frame, config=None):
     if config is None:
-        config = {}    
+        config = {}       
     # Get parameters from config with clear defaults and validation
     hue_min = max(0, min(179, config.get("hue_min", 40)))
     hue_max = max(0, min(179, config.get("hue_max", 80)))
     sat_min = max(1, min(255, config.get("sat_min", 50)))
     val_min = max(1, min(255, config.get("val_min", 50)))
-    morph_iterations = max(0, min(10, config.get("morphIterations", 1)))    
+    morph_iterations = max(0, min(10, config.get("morphIterations", 1)))   
     # Create HSV range for green detection
     lower_green = np.array([hue_min, sat_min, val_min])
     upper_green = np.array([hue_max, 255, 255])   
-    # Convert to HSV and create mask
+    # Convert to HSV and create mask - this is a performance-intensive operation
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, lower_green, upper_green)   
     # Apply morphological operations to clean up the mask
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=morph_iterations)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=morph_iterations)   
+    if morph_iterations > 0:  # Skip if iterations = 0
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=morph_iterations)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=morph_iterations)   
     return mask
 
 def detect_corners_in_mask(mask, config=None):
@@ -46,26 +47,35 @@ def detect_corners_in_mask(mask, config=None):
 
 def rank_and_select_quad(corners, config=None):
     if config is None:
-        config = {}       
+        config = {}
+        
     if len(corners) < 4:
-        return None    
+        return None      
+    # Limit the number of corners to consider to avoid combinatorial explosion
+    max_corners_to_check = min(20, len(corners))
+    if len(corners) > max_corners_to_check:
+        # Sort corners by distance from center of image to prioritize central corners
+        h, w = 240, 320  # Approximate center, will work for most camera resolutions
+        corners = sorted(corners, key=lambda pt: abs(pt[0] - w) + abs(pt[1] - h))
+        corners = corners[:max_corners_to_check]
+    
     best_quad = None
-    max_area = 0       
+    max_area = 0  
     # Try all combinations of 4 corners
     for quad in combinations(corners, 4):
-        pts = np.array(quad, dtype=np.float32)    
+        pts = np.array(quad, dtype=np.float32)
         
         # Check if these points form a convex quadrilateral
         hull = cv2.convexHull(pts)
         if len(hull) == 4:  # It's a quadrilateral
             # Calculate area
-            area = cv2.contourArea(hull)     
+            area = cv2.contourArea(hull)       
             # Use a more relaxed square check with higher tolerance
             tolerance = config.get("square_tolerance", 0.3)
             if is_square_like(quad, tolerance=tolerance):
                 if area > max_area:
                     max_area = area
-                    best_quad = quad   
+                    best_quad = quad  
     return best_quad
 
 def is_square_like(quad, tolerance=0.3):

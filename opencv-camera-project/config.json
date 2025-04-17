@@ -36,9 +36,9 @@
         "morphIterations": 1
     },
     "display": {
+        "scale_factor": 1.0,
         "show_fps": true,
         "show_detection_info": true,
-        "scale_factor": 1.0,
         "show_control_panel": true,
         "show_perspective": false
     },

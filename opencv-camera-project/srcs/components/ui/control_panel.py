@@ -23,35 +23,35 @@ class ControlPanel:
         detection_config = self.config_manager.get_detection_config()        
         # HSV Color Range
         cv2.createTrackbar("Hue Min", self.window_name, 
-                          detection_config.get("hue_min", 40), 179, 
-                          self._on_hue_min_change)      
+                        detection_config.get("hue_min", 45), 179,  # Updated default
+                        self._on_hue_min_change)      
         cv2.createTrackbar("Hue Max", self.window_name, 
-                          detection_config.get("hue_max", 80), 179, 
-                          self._on_hue_max_change)   
+                        detection_config.get("hue_max", 85), 179,  # Updated default
+                        self._on_hue_max_change)   
         cv2.createTrackbar("Sat Min", self.window_name, 
-                          detection_config.get("sat_min", 50), 255, 
-                          self._on_sat_min_change)        
+                        detection_config.get("sat_min", 40), 255,  # Updated default
+                        self._on_sat_min_change)        
         cv2.createTrackbar("Val Min", self.window_name, 
-                          detection_config.get("val_min", 50), 255, 
-                          self._on_val_min_change)        
+                        detection_config.get("val_min", 40), 255,  # Updated default
+                        self._on_val_min_change)        
         # Corner Detection Parameters
         cv2.createTrackbar("Quality Level (x100)", self.window_name, 
-                          int(detection_config.get("qualityLevel", 1) * 100), 100, 
-                          self._on_quality_level_change)        
+                        int(detection_config.get("qualityLevel", 1) * 100), 100, 
+                        self._on_quality_level_change)        
         cv2.createTrackbar("Min Distance", self.window_name, 
-                          detection_config.get("minDistance", 10), 50, 
-                          self._on_min_distance_change)       
+                        detection_config.get("minDistance", 5), 50,  # Updated default
+                        self._on_min_distance_change)       
         cv2.createTrackbar("Max Corners", self.window_name, 
-                          detection_config.get("maxCorners", 100), 200, 
-                          self._on_max_corners_change)       
+                        detection_config.get("maxCorners", 100), 200, 
+                        self._on_max_corners_change)       
         # Morphological Operations
         cv2.createTrackbar("Morph Iterations", self.window_name, 
-                          detection_config.get("morphIterations", 1), 5, 
-                          self._on_morph_iterations_change)
+                        detection_config.get("morphIterations", 1), 5, 
+                        self._on_morph_iterations_change)
         
         cv2.createTrackbar("Square Tolerance (x100)", self.window_name, 
-                          int(detection_config.get("square_tolerance", 0.3) * 100), 100, 
-                          self._on_square_tolerance_change)        
+                        int(detection_config.get("square_tolerance", 0.35) * 100), 100,  # Updated default
+                        self._on_square_tolerance_change)       
         # Create a background image for the panel
         self.panel_image = np.ones((self.panel_height, self.panel_width, 3), dtype=np.uint8) * 240
         self._update_panel_image()
@@ -309,21 +309,20 @@ class ControlPanel:
 
     def reset_to_defaults(self):
         detection_config = {
-            "hue_min": 40,
-            "hue_max": 80,
-            "sat_min": 50,
-            "val_min": 50,
+            "hue_min": 39,      # Updated per your feedback
+            "hue_max": 84,      # Updated per your feedback
+            "sat_min": 18,      # Updated per your feedback
+            "val_min": 30,      # Compromise value
             "qualityLevel": 0.01,
-            "minDistance": 10,
+            "minDistance": 5,
             "maxCorners": 100,
             "morphIterations": 1,
-            "square_tolerance": 0.3, 
+            "square_tolerance": 0.35,
             # Preserve other settings not related to green corner detection
             "method": self.config_manager.get_detection_config().get("method", "hybrid"),
-            "min_area": self.config_manager.get_detection_config().get("min_area", 5),
-            "max_area": self.config_manager.get_detection_config().get("max_area", 500),
+            "min_area": self.config_manager.get_detection_config().get("min_area", 3),
+            "max_area": self.config_manager.get_detection_config().get("max_area", 800),
             "threshold_value": self.config_manager.get_detection_config().get("threshold_value", 245),
-            "square_tolerance": self.config_manager.get_detection_config().get("square_tolerance", 0.2),
             "history_length": self.config_manager.get_detection_config().get("history_length", 5)
         } 
         self.config_manager.update_section("detection", detection_config)

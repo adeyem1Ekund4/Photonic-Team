@@ -3,6 +3,22 @@ import cv2
 import numpy as np
 from itertools import combinations
 
+OPTIMAL_GREEN_PARAMS = {
+    "hue_min": 39,          # Based on your feedback for better detection at distance
+    "hue_max": 84,          # Based on your feedback for better detection at distance
+    "sat_min": 18,          # Lowered substantially for distant/faded green markers
+    "val_min": 30,          # Compromise value that works well at distance
+    "qualityLevel": 0.01,   # Good balance for corner detection
+    "minDistance": 5,       # Reduced to detect closer corners
+    "maxCorners": 100,
+    "morphIterations": 1,   # Keep minimal to avoid merging close corners
+    "square_tolerance": 0.35, # Slightly increased to handle perspective distortion
+    "min_area": 3,          # Reduced to detect smaller markers when distant
+    "max_area": 800,        # Increased to handle larger markers when close
+    "processing_scale": 0.75, # Process at 75% resolution for speed
+    "history_length": 5     # Good balance for smooth tracking
+}
+
 def detect_green_regions_hsv(frame, config=None):
     if config is None:
         config = {}       
@@ -27,21 +43,22 @@ def detect_green_regions_hsv(frame, config=None):
 
 def detect_corners_in_mask(mask, config=None):
     if config is None:
-        config = {}    
-    # Find contours in the mask first
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)       
+        config = {}   
+    # More efficient contour finding
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)   
     # Filter contours by area to remove noise
-    min_area = config.get("min_area", 5)
-    max_area = config.get("max_area", 500)
-    valid_contours = [c for c in contours if min_area <= cv2.contourArea(c) <= max_area]      
-    # Find exactly one point per contour (centroid)
+    min_area = config.get("min_area", 3)
+    max_area = config.get("max_area", 800)   
     corners = []
-    for contour in valid_contours:
-        M = cv2.moments(contour)
-        if M["m00"] > 0:  # Avoid division by zero
-            cX = int(M["m10"] / M["m00"])
-            cY = int(M["m01"] / M["m00"])
-            corners.append((cX, cY))     
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if min_area <= area <= max_area:
+            # Fast centroid calculation
+            M = cv2.moments(contour)
+            if M["m00"] > 0:  # Avoid division by zero
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+                corners.append((cX, cY))   
     return corners
 
 def rank_and_select_quad(corners, config=None):
@@ -203,18 +220,39 @@ class CornerTracker:
     def __init__(self, history_length=5):
         self.corner_history = []
         self.history_length = history_length
+        self.velocity = [(0,0), (0,0), (0,0), (0,0)]  # Track velocity for each corner
+        self.last_update_time = time.time()
         
     def update(self, corners):
         if corners is not None:
+            current_time = time.time()
+            dt = current_time - self.last_update_time
+            
+            # Calculate velocity if we have previous corners
+            if self.corner_history:
+                last_corners = self.corner_history[-1]
+                if len(last_corners) == 4 and len(corners) == 4:
+                    for i in range(4):
+                        # Calculate velocity in pixels per second
+                        dx = (corners[i][0] - last_corners[i][0]) / max(dt, 0.001)
+                        dy = (corners[i][1] - last_corners[i][1]) / max(dt, 0.001)
+                        # Apply smoothing to velocity (80% old, 20% new)
+                        self.velocity[i] = (
+                            0.8 * self.velocity[i][0] + 0.2 * dx,
+                            0.8 * self.velocity[i][1] + 0.2 * dy
+                        )
+            
             self.corner_history.append(corners)
             if len(self.corner_history) > self.history_length:
                 self.corner_history.pop(0)
+                
+            self.last_update_time = current_time
                 
     def get_smoothed_corners(self):
         if not self.corner_history:
             return None
             
-        # Average the corner positions over history
+        # Average the corner positions over history with prediction
         smoothed = []
         for i in range(4):  # Assuming 4 corners
             x_sum = sum(history[i][0] for history in self.corner_history if len(history) > i)
@@ -222,23 +260,71 @@ class CornerTracker:
             count = sum(1 for history in self.corner_history if len(history) > i)
             
             if count > 0:
-                smoothed.append((x_sum/count, y_sum/count))               
+                # Basic position from history
+                base_x = x_sum/count
+                base_y = y_sum/count
+                
+                # Add velocity-based prediction (predict 1/30 second ahead)
+                pred_x = base_x + self.velocity[i][0] * 0.033  # Assuming 30fps
+                pred_y = base_y + self.velocity[i][1] * 0.033
+                
+                # Weighted blend of history and prediction (70% history, 30% prediction)
+                smoothed.append((0.7 * base_x + 0.3 * pred_x, 
+                                0.7 * base_y + 0.3 * pred_y))
+                
         return smoothed if len(smoothed) == 4 else None
+
 
 def detect_green_corners(frame, config=None):
     if config is None:
-        config = {}   
-    # Phase 1: Detect green regions using HSV
-    mask = detect_green_regions_hsv(frame, config)    
-    # Phase 2: Find exactly one point per green region
-    corners = detect_corners_in_mask(mask, config)   
+        config = OPTIMAL_GREEN_PARAMS.copy()  # Use optimized defaults
+    
+    # Resize frame for faster processing if needed
+    processing_scale = config.get("processing_scale", 0.75)
+    orig_size = frame.shape[:2]
+    if processing_scale != 1.0:
+        frame = cv2.resize(frame, (0, 0), fx=processing_scale, fy=processing_scale)
+    
+    # Phase 1: Detect green regions using HSV - optimize by using smaller blur kernel
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    
+    # Create HSV range for green detection
+    lower_green = np.array([config.get("hue_min", 45), 
+                           config.get("sat_min", 40), 
+                           config.get("val_min", 40)])
+    upper_green = np.array([config.get("hue_max", 85), 255, 255])
+    
+    # Fast mask creation
+    mask = cv2.inRange(hsv, lower_green, upper_green)
+    
+    # Apply minimal morphological operations
+    if config.get("morphIterations", 1) > 0:
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))  # Smaller kernel
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, 
+                              iterations=config.get("morphIterations", 1))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, 
+                              iterations=config.get("morphIterations", 1))
+    
+    # Phase 2: Find corners more efficiently
+    corners = detect_corners_in_mask(mask, config)
+    
     # Phase 3: Select four corners that form the best quadrilateral
-    quad = rank_and_select_quad(corners, config)    
+    quad = rank_and_select_quad(corners, config)
+    
+    # Scale back if we resized
+    if processing_scale != 1.0 and quad is not None:
+        scale_factor = 1.0 / processing_scale
+        quad = [(int(pt[0] * scale_factor), int(pt[1] * scale_factor)) for pt in quad]
+    
     # Create perspective view if we have a valid quad
     perspective_view = None
     if quad is not None:
+        # Scale the frame back to original size if we resized
+        if processing_scale != 1.0:
+            frame = cv2.resize(frame, (orig_size[1], orig_size[0]))
         ordered_quad = order_points(quad)
-        perspective_view = perspective_transform(frame, ordered_quad)    
+        perspective_view = perspective_transform(frame, ordered_quad)
+    
     return quad, perspective_view, mask
 
 # The module can be tested independently:

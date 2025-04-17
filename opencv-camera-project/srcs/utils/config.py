@@ -31,26 +31,33 @@ class ConfigManager:
                 "high_threshold": 150
             },
             # New parameters for green corner detection
-            "hue_min": 40,
-            "hue_max": 80,
-            "sat_min": 50,
-            "val_min": 50,
+            "hue_min": 39,
+            "hue_max": 84,
+            "sat_min": 18,
+            "val_min": 30,
             "qualityLevel": 0.01,
-            "minDistance": 10,
+            "minDistance": 5,
             "maxCorners": 100,
-            "morphIterations": 1
+            "morphIterations": 1,
+            "square_tolerance": 0.35,
+            "min_area": 3,
+            "max_area": 800,
+            "processing_scale": 0.75,
+            "history_length": 5,
+            "method": "hybrid",
+            "enable_frame_skip": True
         },
         "display": {
+            "scale_factor": 1.0,
             "show_fps": True,
             "show_detection_info": True,
-            "scale_factor": 1.0,
             "show_control_panel": True,
             "show_perspective": False
         },
         "save": {
             "save_detections": False,
             "output_directory": "output",
-            "filename_prefix": "detection_"
+            "filename_prefix": "xy_greentarget_"
         }
     }
     

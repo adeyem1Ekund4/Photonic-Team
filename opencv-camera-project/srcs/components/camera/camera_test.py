@@ -52,7 +52,7 @@ def main():
 
     data_recorder = DataRecorder(
         output_dir=config_manager.get_save_config().get("output_directory", "output"),
-        filename_prefix=config_manager.get_save_config().get("filename_prefix", "tracking_data_"),
+        filename_prefix=config_manager.get_save_config().get("filename_prefix", "xy_greentarget_"),
         interval_ms=250
     )
 
@@ -110,8 +110,11 @@ def main():
             if processing_scale != 1.0 and processing_scale != scale_factor:
                 processing_frame = resize_frame(frame.copy(), scale=processing_scale)
             else:
-                processing_frame = frame.copy()
-                
+                processing_frame = frame.copy()                
+            # Create a copy for display
+            display_frame = frame.copy()            
+            # Get current detection configuration (may have been updated by control panel)
+            detection_config = config_manager.get_detection_config()           
             # Detect green corners using the updated method
             try:
                 quad, perspective_view, mask = detect_green_corners(processing_frame, detection_config)
@@ -119,15 +122,15 @@ def main():
                 if processing_scale != 1.0:
                     if quad is not None:
                         scale_ratio = 1.0 / processing_scale
-                        quad = [(int(x * scale_ratio), int(y * scale_ratio)) for x, y in quad]
+                        quad = [(int(x * scale_ratio), int(y * scale_ratio)) for x, y in quad]           
             except Exception as e:
-                print(f"Error in green corner detection: {e}")
-                # Reset to default detection parameters if an error occurs
-                detection_config = config_manager.DEFAULT_CONFIG["detection"]
-                config_manager.update_section("detection", detection_config)
-                control_panel.update_trackbars_from_config(detection_config)
-                # Skip this frame
-                continue         
+                    print(f"Error in green corner detection: {e}")
+                    # Reset to default detection parameters if an error occurs
+                    detection_config = config_manager.DEFAULT_CONFIG["detection"]
+                    config_manager.update_section("detection", detection_config)
+                    control_panel.update_trackbars_from_config(detection_config)
+                    # Skip this frame
+                    continue         
             # Show mask if enabled or in debug mode
             if show_mask or debug_mode:
                 cv2.imshow("Green Mask", mask)
@@ -230,7 +233,7 @@ def main():
                        (10, display_frame.shape[0] - 40), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
             if smoothed_quad is not None:
-            # Calculate the center of the quadrilateral
+                # Calculate the center of the quadrilateral
                 center_x = int(sum(p[0] for p in smoothed_quad) / 4)
                 center_y = int(sum(p[1] for p in smoothed_quad) / 4)
                 square_center = (center_x, center_y)

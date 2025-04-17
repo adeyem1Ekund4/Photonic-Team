@@ -15,7 +15,7 @@
         "method": "hybrid",
         "min_area": 76,
         "max_area": 885,
-        "square_tolerance": 0.21,
+        "square_tolerance": 0.19,
         "threshold_value": 80,
         "processing_scale": 1.0,
         "enable_frame_skip": false,
@@ -26,13 +26,13 @@
             "low_threshold": 50,
             "high_threshold": 150
         },
-        "hue_min": 24,
-        "hue_max": 91,
-        "sat_min": 16,
-        "val_min": 35,
+        "hue_min": 40,
+        "hue_max": 89,
+        "sat_min": 19,
+        "val_min": 80,
         "qualityLevel": 0.15,
-        "minDistance": 4,
-        "maxCorners": 26,
+        "minDistance": 9,
+        "maxCorners": 5,
         "morphIterations": 1
     },
     "display": {

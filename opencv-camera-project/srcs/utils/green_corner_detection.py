@@ -3,7 +3,6 @@ import cv2
 import numpy as np
 from itertools import combinations
 
-
 def detect_green_regions_hsv(frame, config=None):
     if config is None:
         config = {}       

@@ -1,39 +1,148 @@
 # opencv-camera-project/srcs/components/camera/camera_test.py
+
 import cv2
 import time
 import numpy as np
 import sys
 import os
+import serial
+from serial.tools import list_ports  # for auto-detecting Maestro port
 
 # Add the project source directory to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
 from components.camera.camera_handler import CameraHandler
 from components.camera.camera_selector import CameraSelector
-from utils.green_corner_detection import detect_green_corners, order_points, CornerTracker, detect_corners_in_mask
+from utils.green_corner_detection import (
+    detect_green_corners, order_points, CornerTracker,
+    detect_corners_in_mask, OPTIMAL_GREEN_PARAMS
+)
 from utils.image_processing import apply_grayscale, resize_frame
 from utils.config import ConfigManager
 from utils.performance_monitor import PerformanceMonitor
 from components.ui.control_panel import ControlPanel
 from utils.data_recorder import DataRecorder
 
+# ─────────── SERVO CALIBRATION & CONTROL ───────────
+
+BAUD_RATE = 9600\
+
+ser = None
+'''
+def find_maestro_port():
+    """
+    Scan all serial ports and return the first one whose
+    description or device name looks like a Pololu Maestro.
+    Falls back to the first available port if nothing obvious is found.
+    """
+    ports = list_ports.comports()
+    for p in ports:
+        desc = (p.description or "").lower()
+        dev  = (p.device or "").lower()
+        # match common Pololu identifiers or generic USB-serial
+        if "pololu" in desc or "maestro" in desc \
+           or dev.startswith(("com", "/dev/ttyacm", "/dev/ttyusb")):
+           if "servo controller" in desc and "ttl" not in desc:
+            return p.device
+    # fallback to first port
+    return ports[0].device if ports else None
+'''
+#hard coded to do COM6
+def find_maestro_port() -> str:
+    """
+    Return the hard-coded serial port for the Pololu Maestro.
+    """
+    return "COM6"
+
+def init_servo():
+    """user defined connection to the Maestro, and let it reset."""
+    global ser
+    port = find_maestro_port()
+    if port is None:
+        raise RuntimeError("No serial ports detected. Is your Maestro plugged in?")
+    try:
+        ser = serial.Serial(port, BAUD_RATE, timeout=1)
+        time.sleep(0.2)
+        print(f"Connected to Maestro on port {port}")
+    except serial.SerialException as e:
+        raise RuntimeError(f"Failed to open serial port {port}: {e}")
+
+def set_target(ch, micro_ms):
+    """
+    Send a Set Target (0x84) to channel ch
+    with pulse width micro_ms milliseconds.
+    """
+    if ser is None:
+        return
+    tgt = int(micro_ms * 1000 * 4)  # convert ms → quarter-µs units
+    ser.write(bytes([0x84, ch, tgt & 0x7F, (tgt >> 7) & 0x7F]))
+
+def track_to_servos(cx, cy, frame_w, frame_h):
+    """
+    Map pixel coords (cx,cy) to servo angles and send commands:
+      • ch 0: horizontal, 270° range, mid=135°
+      • ch 1: vertical,   180° range, mid=90°
+    Scalars from Calibration sliders adjust edge sensitivity.
+    """
+    global theta_scalar, phi_scalar
+    # read scalars from trackbars
+    theta_scalar = cv2.getTrackbarPos("Theta×100", "Calibration") / 100.0
+    phi_scalar   = cv2.getTrackbarPos("Phi×100",   "Calibration") / 100.0
+
+    # normalize coords to [-1..+1]
+    x_norm = (cx - frame_w/2) / (frame_w/2)
+    y_norm = (cy - frame_h/2) / (frame_h/2)
+
+    # HORIZONTAL (ch 0): invert mapping for reversed direction
+    h_mid  = 135
+    h_half = 135 * theta_scalar
+    h_angle = h_mid - x_norm * h_half
+    h_angle = max(0.0, min(270.0, h_angle))
+    pulse_h = 0.5 + (h_angle / 270.0) * 2.0
+
+    # VERTICAL (ch 1)
+    v_mid  = 90
+    v_half = 90 * phi_scalar
+    v_angle = v_mid - y_norm * v_half
+    v_angle = max(0.0, min(180.0, v_angle))
+    pulse_v = 0.5 + (v_angle / 180.0) * 2.0
+
+    set_target(0, pulse_h)
+    set_target(1, pulse_v)
+
+# ────────────────────────────────────────────────────────
+
+# Scalars adjust how camera edges map to servo edges.
+# 1.0 means edges of FOV → edges of servo travel.
+theta_scalar = 0.23  # horizontal (270° servo) #hard coded to 23
+phi_scalar   = 0.26  # vertical   (180° servo) #hard coded to 26
+
 def main():
-    print("Initializing Camera Tracking Application...")    
-    # Load configuration
-    config_manager = ConfigManager()
-    camera_config = config_manager.get_camera_config()
+    print("Initializing Camera Tracking Application...")
+
+    # Load configs
+    config_manager   = ConfigManager()
+    camera_config    = config_manager.get_camera_config()
     detection_config = config_manager.get_detection_config()
-    display_config = config_manager.get_display_config()    
-    # Initialize performance monitor
+    display_config   = config_manager.get_display_config()
+
+    # Performance monitor
     performance_monitor = PerformanceMonitor()
-    
-    # Select camera
+
+    # Init servo & Calibration UI
+    init_servo()
+    cv2.namedWindow("Calibration", cv2.WINDOW_NORMAL)
+    cv2.createTrackbar("Theta×100", "Calibration", int(theta_scalar*100), 200, lambda x: None)
+    cv2.createTrackbar("Phi×100",   "Calibration", int(phi_scalar*100),   200, lambda x: None)
+
+    # Camera selection
     camera_selector = CameraSelector()
     selected_camera = camera_selector.select_camera()
-    
     if selected_camera is None:
-        print("No camera selected. Exiting application.")
-        return    
-    # Initialize camera with configuration
+        print("No camera selected. Exiting.")
+        return
+
+    # Camera init
     try:
         camera = CameraHandler(
             camera_index=selected_camera,
@@ -41,24 +150,30 @@ def main():
             fps=camera_config["fps"]
         )
     except Exception as e:
-        print(f"Error initializing camera: {e}")
-        print("Exiting application.")
+        print(f"Error initializing camera: {e}\nExiting.")
         return
-    
-    # Initialize control panel
-    control_panel = ControlPanel(config_manager)   
-    # Initialize corner tracker for temporal smoothing
-    corner_tracker = CornerTracker(history_length=detection_config.get("history_length", 5))
 
-    data_recorder = DataRecorder(
-        output_dir=config_manager.get_save_config().get("output_directory", "output"),
-        filename_prefix=config_manager.get_save_config().get("filename_prefix", "xy_greentarget_"),
-        interval_ms=250
+    # UI panel, tracker, recorder
+    control_panel   = ControlPanel(config_manager)
+    corner_tracker  = CornerTracker(history_length=detection_config.get("history_length", 5))
+    data_recorder   = DataRecorder(
+        output_dir      = config_manager.get_save_config().get("output_directory", "output"),
+        filename_prefix = config_manager.get_save_config().get("filename_prefix", "xy_greentarget_"),
+        interval_ms     = 250
     )
 
-    # Add debugging flag
-    debug_mode = False
-    auto_green_mode = False
+    # Flags & state
+    debug_mode       = False
+    auto_green_mode  = False
+    show_perspective = display_config.get("show_perspective", False)
+    show_mask        = False
+    running          = True
+    trajectory       = []
+    max_trajectory_length = detection_config.get("history_length", 5)
+    frame_skip_threshold   = 0.05
+    last_processing_time   = 0.01
+
+    # On-screen help
     print("Camera initialized. Press 'q' to quit.")
     print("Press 'h' to hide/show control panel.")
     print("Press 'r' to reset detection parameters to defaults.")
@@ -73,243 +188,209 @@ def main():
     print("2. Ensure good lighting conditions")
     print("3. Adjust Hue Min/Max to match your specific shade of green")
     print("4. Increase Sat Min if detecting too many non-green objects")
-    print("5. Use debug mode ('d' key) to see what's being detected")    
-    # Flag to control the main loop
-    running = True
-    show_perspective = display_config.get("show_perspective", False)
-    show_mask = False  # New flag to toggle mask display  
-    # List to store recent center positions for trajectory tracking
-    trajectory = []
-    max_trajectory_length = detection_config.get("history_length", 5)
-    
-    frame_count = 0
+    print("5. Use debug mode ('d' key) to see what's being detected")
+
     while running:
         try:
-            frame_count += 1
-            if frame_count % 2 != 0 and config_manager.get_detection_config().get("enable_frame_skip", False):
-                # Process only every other frame on low-power devices
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q'):
-                    running = False
+            t0 = time.time()
+
+            # Adaptive frame-skip
+            if (last_processing_time > frame_skip_threshold
+                and config_manager.get_detection_config().get("enable_frame_skip", False)):
+                processing_scale = 0.5
+                if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-                continue                
-            # Start timing this frame
-            frame_start_time = time.time()            
-            # Get frame from camera
+            else:
+                processing_scale = detection_config.get("processing_scale", 0.75)
+
             frame = camera.get_frame()
             if frame is None:
-                print("Failed to capture frame")
-                time.sleep(0.1)
-                continue               
-            # Resize frame if scale factor is not 1.0
-            scale_factor = display_config["scale_factor"]
-            if scale_factor != 1.0:
-                frame = resize_frame(frame, scale=scale_factor)               
-            # Create a separate copy for processing (could be even smaller for faster processing)
-            processing_scale = config_manager.get_detection_config().get("processing_scale", 1.0)
-            if processing_scale != 1.0 and processing_scale != scale_factor:
-                processing_frame = resize_frame(frame.copy(), scale=processing_scale)
-            else:
-                processing_frame = frame.copy()                
-            # Create a copy for display
-            display_frame = frame.copy()            
-            # Get current detection configuration (may have been updated by control panel)
-            detection_config = config_manager.get_detection_config()           
-            # Detect green corners using the updated method
+                time.sleep(0.01)
+                continue
+
+            # Resize
+            if display_config["scale_factor"] != 1.0:
+                frame = resize_frame(frame, scale=display_config["scale_factor"])
+            display_frame    = frame.copy()
+            processing_frame = (resize_frame(frame, scale=processing_scale)
+                                if processing_scale != 1.0 else frame.copy())
+
+            # Refresh detection config
+            detection_config = config_manager.get_detection_config()
+
+            # Detect corners
             try:
                 quad, perspective_view, mask = detect_green_corners(processing_frame, detection_config)
-                # If the processing frame was scaled, adjust the coordinates for the display frame
-                if processing_scale != 1.0:
-                    if quad is not None:
-                        scale_ratio = 1.0 / processing_scale
-                        quad = [(int(x * scale_ratio), int(y * scale_ratio)) for x, y in quad]           
+                if processing_scale != 1.0 and quad is not None:
+                    ratio = 1.0 / processing_scale
+                    quad = [(int(x*ratio), int(y*ratio)) for x, y in quad]
             except Exception as e:
-                    print(f"Error in green corner detection: {e}")
-                    # Reset to default detection parameters if an error occurs
-                    detection_config = config_manager.DEFAULT_CONFIG["detection"]
-                    config_manager.update_section("detection", detection_config)
-                    control_panel.update_trackbars_from_config(detection_config)
-                    # Skip this frame
-                    continue         
-            # Show mask if enabled or in debug mode
+                print(f"Detection error: {e}")
+                continue
+
+            # Show/hide mask
             if show_mask or debug_mode:
                 cv2.imshow("Green Mask", mask)
-            elif cv2.getWindowProperty("Green Mask", cv2.WND_PROP_VISIBLE) > 0:
-                cv2.destroyWindow("Green Mask")           
-            # Debug mode visualization
+            else:
+                if cv2.getWindowProperty("Green Mask", cv2.WND_PROP_VISIBLE) > 0:
+                    cv2.destroyWindow("Green Mask")
+
+            # Debug view
             if debug_mode:
-                debug_frame = frame.copy()             
-                # Get all detected corners before quad selection for debugging
-                all_corners = detect_corners_in_mask(mask, detection_config)           
-                # Draw all detected corners
-                for corner in all_corners:
-                    cv2.circle(debug_frame, corner, 3, (0, 255, 255), -1)               
-                # Label the corners with index numbers for easier identification
-                for i, corner in enumerate(all_corners):
-                    cv2.putText(debug_frame, str(i), 
-                            (corner[0] + 5, corner[1] + 5),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)                        
-                # Draw the current detection parameters on the debug view
+                debug_frame = frame.copy()
+                all_corners = detect_corners_in_mask(mask, detection_config)
+                for i, c in enumerate(all_corners):
+                    cv2.circle(debug_frame, c, 3, (0,255,255), -1)
+                    cv2.putText(debug_frame, str(i), (c[0]+5,c[1]+5),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0),1)
+                # parameters overlay
                 param_text = [
-                    f"Hue: {detection_config.get('hue_min', 40)}-{detection_config.get('hue_max', 80)}",
-                    f"Sat Min: {detection_config.get('sat_min', 50)}",
-                    f"Val Min: {detection_config.get('val_min', 50)}",
-                    f"Quality: {detection_config.get('qualityLevel', 0.01):.2f}",
-                    f"Square Tolerance: {detection_config.get('square_tolerance', 0.3):.2f}",
-                    f"Total corners: {len(all_corners)}"
-                ]            
-                for i, text in enumerate(param_text):
-                    cv2.putText(debug_frame, text, (10, 30 + i*25),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)         
-                # Show the debug view
+                    f"Hue: {detection_config.get('hue_min')}–{detection_config.get('hue_max')}",
+                    f"SatMin: {detection_config.get('sat_min')}",
+                    f"ValMin: {detection_config.get('val_min')}",
+                    f"Quality: {detection_config.get('qualityLevel'):.2f}",
+                    f"Tolerance: {detection_config.get('square_tolerance'):.2f}",
+                    f"Total corners: {len(all_corners)}",
+                    f"Proc time: {last_processing_time*1000:.1f} ms"
+                ]
+                for i, txt in enumerate(param_text):
+                    cv2.putText(debug_frame, txt, (10, 30 + i*25),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255),2)
                 cv2.imshow("Debug View", debug_frame)
             else:
-                # Close debug windows if they exist
                 if cv2.getWindowProperty("Debug View", cv2.WND_PROP_VISIBLE) > 0:
                     cv2.destroyWindow("Debug View")
-            
-            if auto_green_mode:
-                cv2.putText(display_frame, "AUTO GREEN MODE", 
-                           (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
-            # Update corner tracker with new quad
+            # Auto-green indicator
+            if auto_green_mode:
+                cv2.putText(display_frame, "AUTO GREEN MODE", (10,30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0),2)
+
+            # Corner smoothing + drawing
             if quad is not None:
-                corner_tracker.update(quad)         
-            # Get smoothed corners for display
+                corner_tracker.update(quad)
             smoothed_quad = corner_tracker.get_smoothed_corners()
-            
+
             if smoothed_quad is not None:
-                # Draw points and quadrilateral lines using smoothed corners
-                for point in smoothed_quad:
-                    cv2.circle(display_frame, tuple(map(int, point)), 5, (0, 255, 0), -1)            
-                # Order the points and draw the quadrilateral
+                for p in smoothed_quad:
+                    cv2.circle(display_frame, tuple(map(int,p)), 5, (0,255,0), -1)
                 pts = order_points(smoothed_quad)
                 for i in range(4):
-                    pt1 = tuple(map(int, pts[i]))
-                    pt2 = tuple(map(int, pts[(i+1) % 4]))
-                    cv2.line(display_frame, pt1, pt2, (0, 0, 255), 2)          
-                # Calculate the center of the quadrilateral
-                center_x = int(sum(p[0] for p in smoothed_quad) / 4)
-                center_y = int(sum(p[1] for p in smoothed_quad) / 4)
-                square_center = (center_x, center_y)     
-                # Update trajectory
+                    cv2.line(display_frame,
+                             tuple(map(int,pts[i])),
+                             tuple(map(int,pts[(i+1)%4])),
+                             (0,0,255),2)
+                cx = int(sum(p[0] for p in smoothed_quad)/4)
+                cy = int(sum(p[1] for p in smoothed_quad)/4)
+                square_center = (cx, cy)
                 trajectory.append(square_center)
                 if len(trajectory) > max_trajectory_length:
-                    trajectory.pop(0)       
-                # Draw a crosshair at the center
-                cv2.drawMarker(display_frame, square_center, (0, 0, 255), cv2.MARKER_CROSS, 20, 2)      
-                # Display "Square Detected" text
+                    trajectory.pop(0)
+                cv2.drawMarker(display_frame, square_center, (0,0,255),
+                               cv2.MARKER_CROSS, 20,2)
                 if display_config["show_detection_info"]:
-                    cv2.putText(display_frame, "Square Detected!", 
-                               (square_center[0] - 60, square_center[1]), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)      
-                # Optionally show the perspective-corrected view
+                    cv2.putText(display_frame, "Square Detected!",
+                                (cx-60, cy), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.8, (0,255,0),2)
                 if show_perspective and perspective_view is not None:
                     cv2.imshow("Perspective View", perspective_view)
+
+                # Servo tracking
+                track_to_servos(cx, cy,
+                                display_frame.shape[1],
+                                display_frame.shape[0])
             else:
-                # No quadrilateral detected
                 if display_config["show_detection_info"]:
-                    cv2.putText(display_frame, "No Green Corners Detected", 
-                               (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-            
-            # Draw target trajectory
-            if len(trajectory) > 1:
-                for i in range(1, len(trajectory)):
-                    # Draw line with increasing intensity for more recent points
-                    intensity = int(255 * (i / len(trajectory)))
-                    cv2.line(display_frame, trajectory[i-1], trajectory[i], 
-                            (0, intensity, 255-intensity), 2)        
-            # Calculate frame processing time and update performance monitor
-            frame_time = time.time() - frame_start_time
-            performance_monitor.update(frame_time)           
-            # Display FPS if enabled
+                    cv2.putText(display_frame, "No Green Corners Detected",
+                                (10,60), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.7, (0,0,255),2)
+
+            # Trajectory lines
+            for i in range(1, len(trajectory)):
+                intensity = int(255 * (i / len(trajectory)))
+                cv2.line(display_frame, trajectory[i-1], trajectory[i],
+                         (0,intensity,255-intensity),2)
+
+            # Performance timing
+            frame_elapsed = time.time() - t0
+            performance_monitor.update(frame_elapsed)
+            last_processing_time = frame_elapsed
+
+            # FPS display
             if display_config["show_fps"]:
                 fps = performance_monitor.get_fps()
-                cv2.putText(display_frame, f"FPS: {fps:.1f}", (10, display_frame.shape[0] - 10), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            
-            instructions = "Press 'q' to quit | 'h' for panel | 'p' for perspective | 'm' for mask | 'd' for debug"
-            cv2.putText(display_frame, instructions, 
-                       (10, display_frame.shape[0] - 40), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-            if smoothed_quad is not None:
-                # Calculate the center of the quadrilateral
-                center_x = int(sum(p[0] for p in smoothed_quad) / 4)
-                center_y = int(sum(p[1] for p in smoothed_quad) / 4)
-                square_center = (center_x, center_y)
-                
-                # Record the center point if recording is active
-                data_recorder.record_point(square_center)
-                
-                # Show recording status on display
-                if data_recorder.is_recording:
-                    cv2.putText(display_frame, "RECORDING", 
-                            (display_frame.shape[1] - 120, 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                cv2.putText(display_frame, f"FPS: {fps:.1f}",
+                            (10, display_frame.shape[0]-10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0),2)
 
-            # Show the display frame
-            cv2.imshow("Camera Feed", display_frame)         
-            # Use a shorter wait time to improve key responsiveness
-            key = cv2.waitKey(10) & 0xFF    
-            # Update control panel with key press
-            control_panel.update(key)    
-            # Check for key presses
+            # On-screen instructions
+            instr = ("Press 'q' to quit | 'h' panel | 'r' reset | "
+                     "'p' perspec | 'm' mask | 'd' debug | "
+                     "'a' auto | 'v' rec")
+            cv2.putText(display_frame, instr,
+                        (10, display_frame.shape[0]-40),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,255),2)
+
+            # Data recording
+            if smoothed_quad is not None:
+                data_recorder.record_point((cx,cy))
+                if data_recorder.is_recording:
+                    cv2.putText(display_frame, "RECORDING",
+                                (display_frame.shape[1]-120,30),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255),2)
+
+            cv2.imshow("Camera Feed", display_frame)
+
+            # Key handling
+            key = cv2.waitKey(10) & 0xFF
+            control_panel.update(key)
             if key == ord('q'):
-                print("User requested exit (q key pressed)")
                 running = False
-                break
+            elif key == ord('h'):
+                control_panel.toggle_visibility()
+            elif key == ord('r'):
+                config_manager.reset_detection_defaults()
             elif key == ord('p'):
                 show_perspective = not show_perspective
-                if not show_perspective and cv2.getWindowProperty("Perspective View", cv2.WND_PROP_VISIBLE) > 0:
+                if not show_perspective:
                     cv2.destroyWindow("Perspective View")
             elif key == ord('m'):
                 show_mask = not show_mask
-                if not show_mask and cv2.getWindowProperty("Green Mask", cv2.WND_PROP_VISIBLE) > 0:
-                    cv2.destroyWindow("Green Mask")
-            elif key == ord('a'):
-                auto_green_mode = not auto_green_mode
-                print(f"Auto green detection mode {'enabled' if auto_green_mode else 'disabled'}")
             elif key == ord('d'):
                 debug_mode = not debug_mode
-                print(f"Debug mode {'enabled' if debug_mode else 'disabled'}")
-                if not debug_mode:
-                    if cv2.getWindowProperty("Debug View", cv2.WND_PROP_VISIBLE) > 0:
-                        cv2.destroyWindow("Debug View")
-                    if not show_mask and cv2.getWindowProperty("Green Mask", cv2.WND_PROP_VISIBLE) > 0:
-                        cv2.destroyWindow("Green Mask")
+            elif key == ord('a'):
+                auto_green_mode = not auto_green_mode
             elif key == ord('v'):
                 if not data_recorder.is_recording:
                     data_recorder.start_recording()
-                    print("Recording started")
                 else:
                     data_recorder.stop_recording()
-                    print("Recording stopped")
-                
+
         except KeyboardInterrupt:
-            print("Keyboard interrupt detected. Exiting...")
-            running = False
             break
         except Exception as e:
-            print(f"Unexpected error: {str(e)}")
-            import traceback
-            traceback.print_exc()  # Print the full stack trace for debugging
+            print(f"Unexpected error: {e}")
+            import traceback; traceback.print_exc()
             time.sleep(1)
-    
-    # Cleanup
-    print("Cleaning up resources...")
+
+    # ─── CLEANUP ───
+    print("Cleaning up resources…")
     if data_recorder.is_recording:
         data_recorder.stop_recording()
     camera.release()
     control_panel.close()
-    cv2.destroyAllWindows()    
-    # Print final performance stats
+    cv2.destroyAllWindows()
+    if ser:
+        ser.close()
+
     stats = performance_monitor.get_stats()
     print("\nPerformance Summary:")
-    print(f"  Average FPS: {stats['overall_fps']:.2f}")
+    print(f"  Average FPS:            {stats['overall_fps']:.2f}")
     print(f"  Total frames processed: {stats['total_frames']}")
-    print(f"  Total runtime: {stats['total_runtime']:.2f} seconds")
-    print(f"  Average frame processing time: {stats['avg_frame_time']*1000:.2f} ms")
+    print(f"  Total runtime:          {stats['total_runtime']:.2f} s")
+    print(f"  Avg frame time:         {stats['avg_frame_time']*1000:.2f} ms")
     print("Application terminated successfully")
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     main()
